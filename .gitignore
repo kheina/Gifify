@@ -7,3 +7,4 @@ geckodriver.exe
 geckodriver
 geckodriver.log
 test.py
+status.json
