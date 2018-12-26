@@ -5,7 +5,7 @@ import json
 import shutil
 import twitter
 import requests
-from subprocess import call
+import subprocess
 
 def IsInt(s):
     try: 
@@ -20,59 +20,132 @@ def getstatusfromurl(url) :
 		url = url.split('?')    # trim off any excess stuff
 		url = url[0].split('/') # and only use the main url
 		for i in range(-1, len(url) * -1, -1) : # ideally goes from -1 to -5
-			if IsInt(url[i]) :
+			if IsInt(url[i]) and int(url[i]) > 10 : # sometimes there are other numbers in the url, but there are no statuses under 10
 				return url[i]
 	return False
 
 def getvideourl(url) :
 	global api
 	global length
+	global bitrate
 	print(' (', url, ') ', end='')
 	status = getstatusfromurl(url)
 	status = api.GetStatus(status)
 	#with open('status.json','w') as f : # debug
 	#	f.write(str(json.dumps(json.loads(str(status)), indent=2)))
 	status = status.AsDict()
-	largest = 0
+	bitrate = 0
+	streamurl = None
 	largestindex = -1
 	if 'media' in status and 'video_info' in status['media'][0] : 
 		length = status['media'][0]['video_info']['duration_millis'] / 1000 # for seconds
 		for i in range(len(status['media'][0]['video_info']['variants'])) :
 			if status['media'][0]['video_info']['variants'][i]['content_type'] == 'application/x-mpegURL' :
-				return status['media'][0]['video_info']['variants'][i]['url']
-			elif status['media'][0]['video_info']['variants'][i]['bitrate'] > largest :
-				largest = status['media'][0]['video_info']['variants'][i]['bitrate']
+				videourl = status['media'][0]['video_info']['variants'][i]['url']
+			elif status['media'][0]['video_info']['variants'][i]['bitrate'] > bitrate :
+				bitrate = status['media'][0]['video_info']['variants'][i]['bitrate']
 				largestindex = i
-		if largestindex == -1 :
-			return url
+		#if videourl is not None :
+		#	#print('bitrate:', bitrate, ' length:', length, ' est-size:', (bitrate/8192)*length, 'kb', sep='')
+		#	return videourl
 		else :
 			return status['media'][0]['video_info']['variants'][largestindex]['url']
 
 def converturltogif(url) :
 	global length
+	global bitrate
 	quality = '-c copy'
-	if length > 30 : 
-		quality =  '-b:v ' + str(75000 / length) + 'k' # 75,000 seems to work best to keep it under 10mb and 
-	if '.m3u8' in url :
-		call('ffmpeg -i ' + url + ' ' + quality + ' -an tempgif.mp4 -y')
-		return True
-	elif '.mp4' in url :
-		response = requests.get(url, stream=True) # stream=True IS REQUIRED
-		if response.status_code == 200 :
-			with open('temp.mp4', 'wb') as tobegif :
-				shutil.copyfileobj(response.raw, tobegif)
-		print('saved as temp.mp4')
-		call('ffmpeg -i temp.mp4 ' + quality + ' -an tempgif.mp4 -y')
-		return True
+	width = 1920  # assume worst case
+	height = 1080 # assume worst case
+	ar = '16:9'
+	misc = ''
+	#print('\ntwitter est:', (bitrate/8192)*length, 'kb', sep='')
+	try :
+		if '.m3u8' in url :
+			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
+				quality =  '-b:v ' + str(75000 / length) + 'k' # 75,000 seems to work best to keep it under 10mb 
+				print('(compressing)...', end='', flush=True)
+			subprocess.call('ffmpeg -i ' + url + ' -loglevel quiet ' + quality + ' -an tempgif.mp4 -y')
+			return True
+		elif '.mp4' in url :
+			response = requests.get(url, stream=True) # stream=True IS REQUIRED
+			if response.status_code == 200 :
+				with open('temp.mp4', 'wb') as tobegif :
+					shutil.copyfileobj(response.raw, tobegif)
+			ffprobe = subprocess.check_output('ffprobe -v quiet -print_format json -show_streams temp.mp4').decode('utf-8')
+			ffprobe = json.loads(ffprobe)
+			for i in range(len(ffprobe['streams'])) :
+				if ffprobe['streams'][i]['codec_type'] == 'video' :
+					if 'bit_rate' in ffprobe['streams'][i] :
+						bitrate = int(ffprobe['streams'][i]['bit_rate'])
+					else :
+						bitrate = 5000000 # assume the worst
+					if 'width' in ffprobe['streams'][i] :
+						width = int(ffprobe['streams'][i]['width'])
+					if 'height' in ffprobe['streams'][i] :
+						height = int(ffprobe['streams'][i]['height'])
+					break
+			#print('ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
+			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
+				quality =  '-b:v ' + str(75000 / length) + 'k' # 75,000 seems to work best to keep it under 10mb 
+				print('(compressing)...', end='', flush=True)
+			subprocess.call('ffmpeg -i temp.mp4 ' + quality + misc + ' -loglevel quiet -an tempgif.mp4 -y')
+			return True
+		elif '.webm' in url :
+			response = requests.get(url, stream=True) # stream=True IS REQUIRED
+			if response.status_code == 200 :
+				with open('temp.webm', 'wb') as tobegif :
+					shutil.copyfileobj(response.raw, tobegif)
+			ffprobe = subprocess.check_output('ffprobe -v quiet -print_format json -show_streams temp.webm').decode('utf-8')
+			ffprobe = json.loads(ffprobe)
+			for i in range(len(ffprobe['streams'])) :
+				if ffprobe['streams'][i]['codec_type'] == 'video' :
+					if 'bit_rate' in ffprobe['streams'][i] :
+						bitrate = int(ffprobe['streams'][i]['bit_rate'])
+					else :
+						bitrate = 5000000 # assume the worst
+					if 'width' in ffprobe['streams'][i] :
+						width = int(ffprobe['streams'][i]['width'])
+					if 'height' in ffprobe['streams'][i] :
+						height = int(ffprobe['streams'][i]['height'])
+					break
+			if width >= height and width > 1280 :
+				misc = ' -vf scale=1280:-1'
+			elif height > width and height > 1280 :
+				misc = ' -vf scale=-1:1280'
+			#print('ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
+			#if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
+			quality =  '-b:v 3000k' # no way to measure length OR bitrate of webm files, so just do 3mb/s and hope for the best
+			print('(compressing)...', end='', flush=True)
+			subprocess.call('ffmpeg -i temp.webm ' + quality + misc + ' -loglevel quiet -an tempgif.mp4 -y')
+			return True
+	except Exception as e :
+		print(e)
+		return False
 
-def isURLvalid(url) :
+def linkonly(url) :
 	if '//twitter.com' in url and '/status/' in url :
-		return True
-	return False
+		return getvideourl(url)
+	elif '.mp4' in url or '.webm' in url :
+		return url
+
+def start(update) :
+	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
+	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=I can quickly convert twitter video content into a gif for you to share!\n\nJust send me a link to get started.')
+
+def incrementloadloop() :
+	global loadloop
+	global loadindex
+	print('\r' + loadloop[loadindex], end=' ')
+	loadindex = loadindex + 1
+	if loadindex > 3 : loadindex = 0
+	
 
 if __name__ == "__main__" :
 	global api
 	global token
+	global loadloop
+	global loadindex
 	giffer = sys.modules[__name__]
 
 	# telegram bot auth token (given by @BotFather upon your bot's creation)
@@ -91,26 +164,27 @@ if __name__ == "__main__" :
 		botID = credentials['telegramBotID']
 		api = twitter.Api(consumer_key = credentials['twitter']['consumerKey'], consumer_secret = credentials['twitter']['consumerSecret'], access_token_key = credentials['twitter']['accessTokenKey'], access_token_secret = credentials['twitter']['accessTokenSecret'], tweet_mode='extended')
 		#print(json.dumps(credentials, indent=2))
-	print('success.')
+	print('success.\n')
 
 	maxloops = 10000 # for debugging, so it doesn't run forever
+	loadloop = ['|', '/', '-', '\\']
+	loadindex = 0
 
 	loops = 0
 	mostrecentupdate = 0
-	while (loops < maxloops) :
+	while (True) :
 		request = 'https://api.telegram.org/bot' + token + '/getUpdates'
-		print('sending request...', end='', flush=True)
+		incrementloadloop()
 		response = requests.get(request + '?offset=' + str(mostrecentupdate + 1))
 		response = response.json()
-		print('success.')
 		if response['ok'] :
 			updateList = response['result']
 			if len(updateList) > 0 :
-				print('updates:', len(updateList))
+				print('\rupdates:', len(updateList))
 				for i in range(len(updateList)) :
 					#if 'query' in updateList[i] and 'status' in updateList[i]['query'] : # FOR INLINE
 					#	get_video_url(updateList[i]['query'])
-					if 'message' in updateList[i] and 'text' in updateList[i]['message'] and 'status' in updateList[i]['message']['text'] :
+					if 'message' in updateList[i] and 'text' in updateList[i]['message'] :
 						if 'from' in updateList[i]['message'] :
 							if 'username' in updateList[i]['message']['from'] :
 								print('(from ', updateList[i]['message']['from']['username'], ')', sep='')
@@ -119,13 +193,14 @@ if __name__ == "__main__" :
 
 						query = updateList[i]['message']['text'].split(' ')
 						if len(query) == 1 and updateList[i]['message']['text'][0] is not '/' :
-							command = 'getvideourl'
+							command = 'linkonly'
 							url = query[0]
 						else :
 							command = query[0][1:] # remove the slash
-							url = query[1]
+							if len(query) > 1 :
+								url = query[1]
 
-						if hasattr(giffer, command) and isURLvalid(url) :
+						if command == 'linkonly' :
 							method = getattr(giffer, command)
 							print('retrieving url...', end='', flush=True)
 							videourl = method(url)
@@ -136,7 +211,7 @@ if __name__ == "__main__" :
 								if converturltogif(videourl) :
 									print('success.')
 									print('sending gif...', end='', flush=True)
-									request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id'])
+									request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&caption=' + url.replace('?', '%3F')
 									gif = open('tempgif.mp4', 'rb')
 									telegramfile = {'document': gif}
 									sentFile = requests.get(request, files=telegramfile)
@@ -155,12 +230,15 @@ if __name__ == "__main__" :
 											print('reason: ' + response['description'])
 							else :
 								print('failed. (', url,')')
+						elif hasattr(giffer, command) :
+							method = getattr(giffer, command)
+							method(updateList[i])
 							
 				# clear update list
 				mostrecentupdate = updateList[-1]['update_id']
 		else :
-			print('response not ok:', response)
+			print('\rresponse not ok:', response)
 			# wait a second before trying again
-		loops = loops + 1
-		#time.sleep(10)
+		#loops = loops + 1
+		#time.sleep(1)
 	

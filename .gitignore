@@ -1,8 +1,11 @@
 credentials.json
 temp.mp4
+temp.webm
 tempgif.mp4
 ffmpeg.exe
 ffmpeg
+ffprobe.exe
+ffprobe
 geckodriver.exe
 geckodriver
 geckodriver.log
