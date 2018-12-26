@@ -6,3 +6,6 @@ To do this, the bot takes a twitter url and retrieves the tweet ID from the link
 
 ## Usage
 Just send a link to https://t.me/twittergifbot
+
+### Note:
+Requires FFmpeg and FFprobe to run
