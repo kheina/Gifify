@@ -65,7 +65,8 @@ def getvideourl(url) :
 def converturltogif(url) :
 	global length
 	global bitrate
-	quality = '-c copy'
+	global quality
+	global inputoptions
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	ar = '16:9'
@@ -75,11 +76,12 @@ def converturltogif(url) :
 	url = url.split('?')[0] #remove any extraneous information after and including ?, if there is one
 
 	try :
-		if '.m3u8' in url :
+		if url.endswith('.m3u8') :
+			quality = '-c copy'
 			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
 				quality = str(77000 / length) # ~75,000 seems to work best to keep it under 10mb
-				print('(compressing, ', quality, 'kb/s)...', sep='', end='', flush=True)
-			subprocess.call('ffmpeg -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
+				print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+			subprocess.call('ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
 			return True
 		elif url.endswith('.mp4') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
@@ -91,11 +93,11 @@ def converturltogif(url) :
 				misc = misc + ' -vf scale=1280:-2'
 			elif height > width and height > 1280 :
 				misc = misc + ' -vf scale=-2:1280'
-			#print('ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
+			quality = '-c copy'
 			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
 				quality = '-b:v ' + str(77000 / length) + 'k' # ~75,000 seems to work best to keep it under 10mb
-				print('(compressing, ', quality, 'kb/s)...', sep='', end='', flush=True)
-			subprocess.call('ffmpeg -i temp.mp4 ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
+				print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+			subprocess.call('ffmpeg ' + inputoptions + ' -i temp.mp4 ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
 			return True
 		elif url.endswith('.webm') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
@@ -110,13 +112,12 @@ def converturltogif(url) :
 			elif width % 2 != 0 or height % 2 != 0 :
 				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
 			#print('ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
-			quality = '4000'
 			if length * float(quality)/8 > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(77000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(80000 / length) # ~75,000 seems to work best to keep it under 10mb
 			elif length == 1 and filesize/8192 > 8000 :
 				quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
-			print('(compressing, ', quality, 'kb/s)...', sep='', end='', flush=True)
-			subprocess.call('ffmpeg -i temp.webm -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
+			print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+			subprocess.call('ffmpeg ' + inputoptions + ' -i temp.webm -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
 			return True
 		elif url.endswith('.gif') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
@@ -131,17 +132,16 @@ def converturltogif(url) :
 			elif width % 2 != 0 or height % 2 != 0 :
 				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
 			#print('bitrate:', bitrate, ' length:', length, ' ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
-			quality = '4000'
 			if length * float(quality)/8 > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(77000 / length) # ~75,000 seems to work best to keep it under 10mb
-			print('(compressing, ', quality, 'kb/s)...', sep='', end='', flush=True)
-			call = 'ffmpeg -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+				quality = str(80000 / length) # ~75,000 seems to work best to keep it under 10mb
+			print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+			call = 'ffmpeg ' + inputoptions + ' -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			#print('( ' + call, end=' )...')
 			subprocess.call(call)
 			return True
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('(error: ', e, ', line:', exc_tb.tb_lineno, ')...', sep='', end='')
+		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return False
 
 def FFprobe(filename) :
@@ -160,11 +160,11 @@ def FFprobe(filename) :
 				width = int(ffprobe['streams'][i]['width'])
 			if 'height' in ffprobe['streams'][i] :
 				height = int(ffprobe['streams'][i]['height'])
-			if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
+			if length == 1 and 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
 				length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
-			if 'duration' in ffprobe['streams'][i] :
+			if length == 1 and 'duration' in ffprobe['streams'][i] :
 				length = float(ffprobe['streams'][i]['duration']) # already seconds
-		if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'audio' :
+		if length == 1 and 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'audio' :
 			if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
 				length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
 			if 'duration' in ffprobe['streams'][i] :
@@ -188,7 +188,7 @@ def istimecodeformat(timecode) :
 		return True
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('(error: ', e, ', line:', exc_tb.tb_lineno, ')...', sep='', end='')
+		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 	return False
 
 def getsecondsfromtimecode(timecode) :
@@ -204,10 +204,11 @@ def getsecondsfromtimecode(timecode) :
 			return 1
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('(error: ', e, ', line:', exc_tb.tb_lineno, ')...', sep='', end='')
+		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return 1
 
 def linkonly(url) :
+	url = url.split('?')[0] #remove any extraneous information after and including ?, if there is one
 	if '//twitter.com' in url and '/status/' in url :
 		return getvideourl(url)
 	elif url.endswith('.mp4') or url.endswith('.webm') or url.endswith('.gif') :
@@ -216,6 +217,17 @@ def linkonly(url) :
 		return url.replace('.gifv', '.mp4')
 	else :
 		return parseformedia(url)
+
+def geturlfromdocument(document) :
+	global acceptedtypes
+	if 'mime_type' in document :
+		mime_type = document['mime_type'].split('/')
+		if len(mime_type) > 1 and mime_type[1] in acceptedtypes :
+			request = 'https://api.telegram.org/bot' + token + '/getFile?file_id=' + document['file_id']
+			response = requests.get(request)
+			response = checkresponsesilent(response)
+			if response is not False :
+				return 'https://api.telegram.org/file/bot' + token + '/' + response['result']['file_path']
 
 def parseformedia(url) :
 	try: 
@@ -226,10 +238,9 @@ def parseformedia(url) :
 			temp = page.html.find(sourcetype, first=True)
 			if temp is not None : source = temp
 		return source.attrs['src']
-		
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('(error: ', e, ', line:', exc_tb.tb_lineno, ')...', sep='', end='')
+		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return None
 
 
@@ -238,13 +249,13 @@ def parseformedia(url) :
 def start(update) :
 	print('responding to /start...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert twitter, .mp4, .gifv, .gif, and .webm URLs\n\nJust send me a link to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me [time in seconds] after your url (webm only)\nex: example.com/yourvideo.webm 73')
+	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert .mp4, .gifv, .gif, and .webm URLs, and even parse twitter and many other websites!\n\nJust send me a link or file to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
 	checkresponse(response)
 
 def help(update) :
 	print('responding to /help...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me [time in seconds] after your url (webm only)\nex: example.com/yourvideo.webm 73')
+	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
 	checkresponse(response)
 
 def incrementloadloop() :
@@ -289,9 +300,11 @@ if __name__ == "__main__" :
 	global api
 	global token
 	global length
-	global bitrate
+	global quality
 	global loadloop
 	global loadindex
+	global inputoptions
+	global acceptedtypes
 	giffer = sys.modules[__name__]
 	colorama.init()
 
@@ -314,12 +327,13 @@ if __name__ == "__main__" :
 	print('success.\n')
 
 	maxloops = 10000 # for debugging, so it doesn't run forever
-	loadloop = ['|', '/', '-', '\\']
 	loadloop = ['⠇', '⠋', '⠙', '⠸', '⢰', '⣠', '⣄', '⡆']
 	loadframes = len(loadloop) - 1
 	loadindex = 0
 
-	commands = ['start', 'help', 'linkonly']
+	commands = ['linkonly', 'geturlfromdocument']
+	othercommands = ['start', 'help']
+	acceptedtypes = ['webm', 'mp4', 'gif']
 	
 	loops = 0
 	mostrecentupdate = 0
@@ -335,74 +349,115 @@ if __name__ == "__main__" :
 				for i in range(len(updateList)) :
 					#if 'query' in updateList[i] and 'status' in updateList[i]['query'] : # FOR INLINE
 					#	get_video_url(updateList[i]['query'])
-					if 'message' in updateList[i] and 'text' in updateList[i]['message'] :
-						url = ''
-						command = ''
-						length = 1
-						bitrate = None
-						if 'from' in updateList[i]['message'] :
-							if 'username' in updateList[i]['message']['from'] :
-								print('(from ', updateList[i]['message']['from']['username'], ')', sep='', end=' ')
-							else :
-								print('(from ', updateList[i]['message']['from']['first_name'], ' (', updateList[i]['message']['from']['id'], '))', sep='', end=' ')
-
-						query = updateList[i]['message']['text'].split(' ')
-						print(query)
-						if len(query) == 1 and updateList[i]['message']['text'][0] is not '/' :
-							command = 'linkonly'
-							url = query[0]
-						else :
-							if query[0][0] == '/' :
-								command = query[0][1:] # remove the slash
-							else :
-								command = 'linkonly'
-							for j in range(len(query)) :
-								if len(query[j]) >= 4 and query[j].startswith('http') :
-									url = query[j]
-								elif query[j] == '-length' or query[j] == 'length' and len(query) > j+1 :
-									length = getsecondsfromtimecode(query[j+1])
-									j = j + 1
-								elif 'length=' in query[j] :
-									queryj = query[j].split('=')
-									if len(queryj) >= 2 : length = getsecondsfromtimecode(queryj[1])
-								elif istimecodeformat(query[j]) :
-									length = getsecondsfromtimecode(query[j])
-
-						if command == 'linkonly' :
-							method = getattr(giffer, command)
-							print('retrieving url...', end='', flush=True)
-							videourl = method(url)
-							if videourl is not None :
-								print('success. (', videourl, ')')
-								
-								print('converting to gif...', end='', flush=True)
-								if converturltogif(videourl) :
-									print('success.')
-									print('sending gif...', end='', flush=True)
-									request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
-									gif = open('tempgif.mp4', 'rb')
-									telegramfile = {'document': gif}
-									sentFile = requests.get(request, files=telegramfile)
-									checkresponse(sentFile)
+					if 'message' in updateList[i] :
+						if 'text' in updateList[i]['message'] or 'document' in updateList[i]['message'] :
+							url = ''
+							command = ''
+							length = 1 # defaults
+							inputoptions = ''
+							starttime = 0
+							endtime = 0
+							quality = '4000'
+							if 'from' in updateList[i]['message'] :
+								if 'username' in updateList[i]['message']['from'] :
+									print('(from ', updateList[i]['message']['from']['username'], ')', sep='', end=' ')
 								else :
-									print('failed, sending url instead...', end='', flush=True)
-									request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + videourl)
-									checkresponse(response)
+									print('(from ', updateList[i]['message']['from']['first_name'], ' (', updateList[i]['message']['from']['id'], '))', sep='', end=' ')
+							
+							if 'text' in updateList[i]['message'] :
+								query = updateList[i]['message']['text'].split(' ')
+							elif 'document' in updateList[i]['message'] :
+								command = 'geturlfromdocument'
+								url = updateList[i]['message']['document']
+								if 'caption' in updateList[i]['message'] :
+									query = updateList[i]['message']['caption'].split(' ')
+								else : query = []
+
+							if len(query) > 0 and query[0][0] == '/' :
+								command = query[0][1:] # remove the slash
+
+							print(query)
+							if len(query) == 1 and query[0][0] != '/' and command == '' :
+								command = 'linkonly'
+								url = query[0]
 							else :
-								print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
-								print('apologizing...', end='', flush=True)
+								for j in range(len(query)) :
+									if len(query[j]) >= 4 and query[j].startswith('http') :
+										url = query[j]
+									elif query[j] == 'length' and len(query) > j+1 :
+										length = getsecondsfromtimecode(query[j+1])
+										j = j + 1
+									elif 'length=' in query[j] :
+										queryj = query[j].split('=')
+										if len(queryj) >= 2 : length = getsecondsfromtimecode(queryj[1])
+									elif query[j] == 'bitrate' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+										quality = query[j+1]
+										j = j + 1
+									elif 'bitrate=' in query[j] :
+										queryj = query[j].split('=')
+										if len(queryj) >= 2 and istimecodeformat(queryj[1]) : quality = queryj[1]
+									elif query[j] == 'start' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+										starttime = getsecondsfromtimecode(query[j+1])
+										inputoptions = inputoptions + ' -ss ' + str(starttime)
+										j = j + 1
+									elif 'start=' in query[j] :
+										queryj = query[j].split('=')
+										if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
+											starttime = getsecondsfromtimecode(queryj[1])
+											inputoptions = inputoptions + ' -ss ' + str(starttime)
+									elif query[j] == 'end' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+										endtime = getsecondsfromtimecode(query[j+1])
+										inputoptions = inputoptions + ' -to ' + str(endtime)
+										j = j + 1
+									elif 'end=' in query[j] :
+										queryj = query[j].split('=')
+										if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
+											endtime = getsecondsfromtimecode(queryj[1])
+											inputoptions = inputoptions + ' -to ' + str(endtime)
+									elif istimecodeformat(query[j]) :
+										length = getsecondsfromtimecode(query[j])
+									
+								if endtime != 0 :
+									length = endtime - starttime
+
+							if command in commands :
+								method = getattr(giffer, command)
+								print('retrieving url...', end='', flush=True)
+								videourl = method(url)
+								if videourl is not None :
+									print('success. (', videourl, ')')
+									
+									print('converting to gif...', end='', flush=True)
+									if converturltogif(videourl) :
+										print('success.')
+										print('sending gif...', end='', flush=True)
+										if command == 'linkonly' :
+											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
+										else :
+											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id'])
+										gif = open('tempgif.mp4', 'rb')
+										telegramfile = {'document': gif}
+										sentFile = requests.get(request, files=telegramfile)
+										checkresponse(sentFile)
+									else :
+										print('failed, sending url instead...', end='', flush=True)
+										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
+										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + videourl)
+										checkresponse(response)
+								else :
+									print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
+									print('apologizing...', end='', flush=True)
+									request = 'https://api.telegram.org/bot' + token + '/sendMessage'
+									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t support that filetype yet!\n\nTo see what I can do, try /start')
+									checkresponse(response)
+							elif command in othercommands and hasattr(giffer, command) :
+								method = getattr(giffer, command)
+								method(updateList[i])
+							else :
+								print('unknown command ( /', command, ' ) apologizing...', sep='', end='', flush=True)
 								request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-								response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t support that filetype yet!')
+								response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help')
 								checkresponse(response)
-						elif command in commands and hasattr(giffer, command) :
-							method = getattr(giffer, command)
-							method(updateList[i])
-						else :
-							print('unknown command ( /', command, ' ) apologizing...', sep='', end='', flush=True)
-							request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-							response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help')
-							checkresponse(response)
 					else :
 						print(updateList[i])
 							
@@ -411,5 +466,4 @@ if __name__ == "__main__" :
 		else :
 			time.sleep(1) # wait a second before trying again
 		#loops = loops + 1
-		#time.sleep(1)
 	
