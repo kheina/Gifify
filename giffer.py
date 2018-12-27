@@ -79,7 +79,7 @@ def converturltogif(url) :
 		if url.endswith('.m3u8') :
 			quality = '-c copy'
 			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(77000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(77500 / length) # ~75,000 seems to work best to keep it under 10mb
 				print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
 			subprocess.call('ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
 			return True
@@ -95,7 +95,7 @@ def converturltogif(url) :
 				misc = misc + ' -vf scale=-2:1280'
 			quality = '-c copy'
 			if (bitrate/8192)*length > 10000 : # estimating final size to determine if it should be compressed
-				quality = '-b:v ' + str(77000 / length) + 'k' # ~75,000 seems to work best to keep it under 10mb
+				quality = '-b:v ' + str(77500 / length) + 'k' # ~75,000 seems to work best to keep it under 10mb
 				print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
 			subprocess.call('ffmpeg ' + inputoptions + ' -i temp.mp4 ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y')
 			return True
@@ -113,7 +113,7 @@ def converturltogif(url) :
 				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
 			#print('ffprobe est:', (bitrate/8192)*length, 'kb', sep='')
 			if length * float(quality)/8 > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(80000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(77500 / length) # ~75,000 seems to work best to keep it under 10mb
 			elif length == 1 and filesize/8192 > 8000 :
 				quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 			print('(compressing, ', length, 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
@@ -377,10 +377,10 @@ if __name__ == "__main__" :
 								command = query[0][1:] # remove the slash
 
 							print(query)
-							if len(query) == 1 and query[0][0] != '/' and command == '' :
-								command = 'linkonly'
-								url = query[0]
-							else :
+							if len(query) > 0 :
+								if command == '' and query[0][0] != '/' :
+									command = 'linkonly'
+
 								for j in range(len(query)) :
 									if len(query[j]) >= 4 and query[j].startswith('http') :
 										url = query[j]
