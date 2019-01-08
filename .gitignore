@@ -10,3 +10,7 @@ geckodriver
 geckodriver.*
 test.*
 status.json
+cookies
+*.mp4
+*.gif
+*.webm

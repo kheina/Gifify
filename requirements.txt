@@ -1,0 +1,6 @@
+requests_html
+PIL.GifImagePlugin
+ujson
+requests
+colorama
+python-twitter
