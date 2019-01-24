@@ -8,4 +8,4 @@ To do this, the bot takes a twitter url and retrieves the tweet ID from the link
 Just send a link or file to [t.me/gififybot](https://t.me/gififybot)
 
 ### Note:
-Requires [FFmpeg and FFprobe](https://www.ffmpeg.org/download.html) to run
+Requires [FFmpeg and FFprobe](https://www.ffmpeg.org/download.html) version 4+ to run

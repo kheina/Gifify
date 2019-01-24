@@ -160,7 +160,7 @@ def converturltogif(url) :
 			elif height > 1280 and height > width :
 				misc = misc + ' -vf scale=-2:1280'
 			elif width % 2 != 0 or height % 2 != 0 :
-				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
+				misc = misc + ' -vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
 			estimatedsize = length * float(quality)/8
 			if userquality > 0 :
 				quality = userquality
@@ -179,9 +179,9 @@ def converturltogif(url) :
 		return False
 
 def FFprobe(filename) :
-	global userlength
 	global endtime
 	global starttime
+	global userlength
 	call = 'ffprobe -v quiet -print_format json -show_streams ' + filename
 	ffprobe = subprocess.check_output(call.split()).decode('utf-8')
 	ffprobe = json.loads(ffprobe)
@@ -213,8 +213,10 @@ def FFprobe(filename) :
 		bitrate = filesize / length
 	if filename.endswith('.gif') :
 		with PIL.GifImagePlugin.GifImageFile(fp=filename) as gif :
+			print(gif.info)
 			length = (gif.n_frames + 1) * gif.info['duration'] / 1000 # divide by 1000 to get seconds
 			bitrate = filesize / length
+			width, height = gif.size
 	if length == 1 :
 		length = userlength
 	if endtime > 0 :
@@ -352,7 +354,7 @@ def checkresponsesilent(response) :
 	try :
 		response = response.json()
 		if not response['ok'] :
-			print('failed.')
+			print('\rfailed.')
 			if 'description' in response :
 				print('reason: ' + response['description'])
 			return False
@@ -367,11 +369,22 @@ def checkresponsesilent(response) :
 def donothing() :
 	return
 
+def reset() :
+	global endtime
+	global starttime
+	global userquality
+	starttime = 0
+	userquality = 0
+	endtime = 0
+
+
 if __name__ == "__main__" :
 	global api
 	global token
+	global endtime
 	global loadloop
 	global loadindex
+	global starttime
 	global userlength
 	global userquality
 	global inputoptions
@@ -399,7 +412,7 @@ if __name__ == "__main__" :
 	# 		'accessTokenSecret' : 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 	# 	}
 	# }
-	# credentials are now saved in credentials.json in the format above
+	# credentials are saved in credentials.json in the format above
 
 	print('loading credentials...', end='', flush= True)
 	with open('credentials.json') as userinfo :
