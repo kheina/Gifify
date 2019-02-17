@@ -56,7 +56,7 @@ def getvideourl(url) :
 	largestindex = -1
 	try :
 		if 'media' in status and 'video_info' in status['media'][0] : 
-			length = status['media'][0]['video_info']['duration_millis'] / 1000 # for seconds
+			#length = status['media'][0]['video_info']['duration_millis'] / 1000 # for seconds
 			for i in range(len(status['media'][0]['video_info']['variants'])) :
 				#if status['media'][0]['video_info']['variants'][i]['content_type'] == 'application/x-mpegURL' :
 				#	videourl = status['media'][0]['video_info']['variants'][i]['url']
@@ -67,21 +67,34 @@ def getvideourl(url) :
 			#	#print('bitrate:', bitrate, ' length:', length, ' est-size:', (bitrate/8192)*length, 'kb', sep='')
 			#	return videourl
 			#else :
-			return status['media'][0]['video_info']['variants'][largestindex]['url']
-		else :
-			# twitter url doesn't have a media and video_info, need to search for media
-			media = searchformediaintweet(status)
-			if media : return media
+			if largestindex >= 0 : return status['media'][0]['video_info']['variants'][largestindex]['url']
+		# twitter url doesn't have a media and video_info, need to search for media
+		media = searchformediaintweet(status)
+		if media : return media
 	except : donothing()
 	print(status)
 
-def searchformediaintweet(tweet) :
-	# step backwards, as the largest file is generally placed last
-	for key, value in d.items() :
-		if isstr(value) and value.split('?')[0].endswith('.mp4') : # all twitter videos should be mp4s
+def searchformediaintweet(status) :
+	for key, value in status.items() :
+		if isstr(value) and value.endswith('.mp4') : # all twitter videos should be mp4s
 			return value
 		elif isinstance(value, dict) :
-			media = searchformediaintweet(tweet)
+			media = searchformediaintweet(value)
+			if media is not None : return media
+		elif isinstance(value, list) :
+			media = searchformediaintweetlist(value)
+			if media is not None : return media
+	return None
+
+def searchformediaintweetlist(status) :
+	for value in status :
+		if isstr(value) and value.endswith('.mp4') : # all twitter videos should be mp4s
+			return value
+		elif isinstance(value, dict) :
+			media = searchformediaintweet(value)
+			if media is not None : return media
+		elif isinstance(value, list) :
+			media = searchformediaintweetlist(value)
 			if media is not None : return media
 	return None
 
@@ -127,9 +140,9 @@ def converturltogif(url) :
 				estimatedsize = length * float(userquality)/8
 				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
 				quality = '-b:v ' + quality
-			elif rescale or estimatedsize > 10000: # estimating final size to determine if it should be compressed
-				quality = 77500 / length
-				if quality > 10000 : quality = 10000
+			elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+				quality = 70000 / length
+				if quality > 8000 : quality = 8000
 				estimatedsize = length * float(quality)/8
 				quality = str(quality) + 'k'
 				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
@@ -157,9 +170,9 @@ def converturltogif(url) :
 			if float(userquality) > 0 :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
-			elif estimatedsize > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(77500 / length) # ~75,000 seems to work best to keep it under 10mb
-				if float(quality) > 10000 : quality = 10000
+			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+				quality = str(70000 / length) # ~75,000 seems to work best to keep it under 10mb
+				if float(quality) > 8000 : quality = 8000
 				estimatedsize = length * float(quality)/8
 				quality = str(quality) + 'k'
 			elif length == 1 and filesize/8192 > 8000 :
@@ -186,9 +199,9 @@ def converturltogif(url) :
 			if float(userquality) > 0 :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
-			elif estimatedsize > 10000 : # estimating final size to determine if it should be compressed
-				quality = str(80000 / length) # ~75,000 seems to work best to keep it under 10mb
-				estimatedsize = 10000 # 80,000 / 8
+			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+				quality = str(75000 / length) # ~75,000 seems to work best to keep it under 10mb
+				estimatedsize = 8000 # 80,000 / 8
 			print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
 			call = 'ffmpeg ' + inputoptions + ' -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			#print('( ' + call, end=' )...')
@@ -560,7 +573,7 @@ if __name__ == "__main__" :
 										if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
 										elif pcent < 100 : color = colorama.Fore.LIGHTGREEN_EX
 										finalcolor = ''
-										if finalsize > 10000 : finalcolor = colorama.Fore.LIGHTRED_EX
+										if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
 											
 										print('success. ( ' + finalcolor, prettysize(finalsize), colorama.Style.RESET_ALL + '/', prettysize(estimatedsize), ': ' + color, pcent, '%' + colorama.Style.RESET_ALL + ' )' , sep='')
 										print('sending gif...', end='', flush=True)
