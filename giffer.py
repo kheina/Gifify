@@ -13,17 +13,22 @@ import os
 
 def IsInt(s):
     try: 
-        int(s)
-        return True
+        return int(s)
     except ValueError:
-        return False
+        return None
 
 def IsFloat(s):
     try: 
-        float(s)
-        return True
+        return float(s)
     except ValueError:
-        return False
+        return None
+
+def isstr(s):
+	try: 
+		return isinstance(s, str)
+	except ValueError:
+		return None
+
 
 def getstatusfromurl(url) :
 	# https://twitter.com/AMAZlNGNATURE/status/1076962168078102528
@@ -31,7 +36,8 @@ def getstatusfromurl(url) :
 		url = url.split('?')    # trim off any excess stuff
 		url = url[0].split('/') # and only use the main url
 		for i in range(-1, len(url) * -1, -1) : # ideally goes from -1 to -5
-			if IsInt(url[i]) and int(url[i]) > 10 : # sometimes there are other numbers in the url, but there are no statuses under 10
+			url[i] = IsInt(url[i])
+			if url[i] and int(url[i]) > 10 : # sometimes there are other numbers in the url, but there are no statuses under 10
 				return url[i]
 	return False
 
@@ -62,8 +68,23 @@ def getvideourl(url) :
 			#	return videourl
 			#else :
 			return status['media'][0]['video_info']['variants'][largestindex]['url']
-	except : meh = 'meh'
+		else :
+			# twitter url doesn't have a media and video_info, need to search for media
+			media = searchformediaintweet(status)
+			if media : return media
+	except : donothing()
 	print(status)
+
+def searchformediaintweet(tweet) :
+	# step backwards, as the largest file is generally placed last
+	for key, value in d.items() :
+		if isstr(value) and value.split('?')[0].endswith('.mp4') : # all twitter videos should be mp4s
+			return value
+		elif isinstance(value, dict) :
+			media = searchformediaintweet(tweet)
+			if media is not None : return media
+	return None
+
 
 def converturltogif(url) :
 	global length
@@ -101,7 +122,7 @@ def converturltogif(url) :
 				misc = misc + ' -vf scale=-2:1280'
 				rescale = True
 			estimatedsize = (bitrate/8192)*length
-			if userquality > 0 :
+			if float(userquality) > 0 :
 				quality = userquality + 'k'
 				estimatedsize = length * float(userquality)/8
 				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
@@ -133,12 +154,12 @@ def converturltogif(url) :
 			elif width % 2 != 0 or height % 2 != 0 :
 				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
 			estimatedsize = length * float(quality)/8
-			if userquality > 0 :
+			if float(userquality) > 0 :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
 			elif estimatedsize > 10000 : # estimating final size to determine if it should be compressed
 				quality = str(77500 / length) # ~75,000 seems to work best to keep it under 10mb
-				if quality > 10000 : quality = 10000
+				if float(quality) > 10000 : quality = 10000
 				estimatedsize = length * float(quality)/8
 				quality = str(quality) + 'k'
 			elif length == 1 and filesize/8192 > 8000 :
@@ -162,7 +183,7 @@ def converturltogif(url) :
 			elif width % 2 != 0 or height % 2 != 0 :
 				misc = misc + ' -vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
 			estimatedsize = length * float(quality)/8
-			if userquality > 0 :
+			if float(userquality) > 0 :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
 			elif estimatedsize > 10000 : # estimating final size to determine if it should be compressed
@@ -175,7 +196,7 @@ def converturltogif(url) :
 			return True
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return False
 
 def FFprobe(filename) :
@@ -213,7 +234,7 @@ def FFprobe(filename) :
 		bitrate = filesize / length
 	if filename.endswith('.gif') :
 		with PIL.GifImagePlugin.GifImageFile(fp=filename) as gif :
-			print(gif.info)
+			#print(gif.info)
 			length = (gif.n_frames + 1) * gif.info['duration'] / 1000 # divide by 1000 to get seconds
 			bitrate = filesize / length
 			width, height = gif.size
@@ -245,7 +266,7 @@ def istimecodeformat(timecode) :
 		return True
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 	return False
 
 def getsecondsfromtimecode(timecode) :
@@ -261,7 +282,7 @@ def getsecondsfromtimecode(timecode) :
 			return 1
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return 1
 
 def linkonly(url) :
@@ -297,7 +318,7 @@ def parseformedia(url) :
 		return source.attrs['src']
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return None
 
 def start(update) :
@@ -331,7 +352,7 @@ def checkresponse(response) :
 				print('reason: ' + response['description'])
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		print(response, end='\n\n')
 
 def checkresponsetime(response, starttime) :
@@ -346,7 +367,7 @@ def checkresponsetime(response, starttime) :
 				print('reason: ' + response['description'])
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( error: ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='')
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		print(response, end='\n\n')
 
 		
@@ -362,12 +383,12 @@ def checkresponsesilent(response) :
 			return response
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('\r( error: ', e, ', line:', exc_tb.tb_lineno, ' )', sep='')
+		print('\r( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		print(response, end='')
 		return False
 
 def donothing() :
-	return
+	pass
 
 def reset() :
 	global endtime
