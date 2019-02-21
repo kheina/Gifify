@@ -438,13 +438,13 @@ if __name__ == '__main__' :
 	api = None
 
 	# credentials = {
-	# 	'telegramAccessToken' : 'yyyyyyyyy:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-	# 	'telegramBotID' : yyyyyyyyy,
-	# 	'twitter' : {
-	# 		'consumerKey' : 'xxxxxxxxxxxxxxxxxxxxxxxxx',
-	# 		'consumerSecret' : 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-	# 		'accessTokenKey' : 'yyyyyyyyyyyyyyyyyyy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-	# 		'accessTokenSecret' : 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+	# 	"telegramAccessToken" : "yyyyyyyyy:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	# 	"telegramBotID" : yyyyyyyyy,
+	# 	"twitter" : {
+	# 		"consumerKey" : "xxxxxxxxxxxxxxxxxxxxxxxxx",
+	# 		"consumerSecret" : "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	# 		"accessTokenKey" : "yyyyyyyyyyyyyyyyyyy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	# 		"accessTokenSecret" : "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 	# 	}
 	# }
 	# credentials are saved in credentials.json in the format above
