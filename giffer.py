@@ -45,6 +45,9 @@ def getvideourl(url) :
 	global api
 	global length
 	global bitrate
+	if not api :
+		print(' (twitter not initialized) ', end='')
+		return None
 	print(' (', url, ') ', end='')
 	status = getstatusfromurl(url)
 	status = api.GetStatus(status)
@@ -56,7 +59,6 @@ def getvideourl(url) :
 	largestindex = -1
 	try :
 		if 'media' in status and 'video_info' in status['media'][0] : 
-			#length = status['media'][0]['video_info']['duration_millis'] / 1000 # for seconds
 			for i in range(len(status['media'][0]['video_info']['variants'])) :
 				#if status['media'][0]['video_info']['variants'][i]['content_type'] == 'application/x-mpegURL' :
 				#	videourl = status['media'][0]['video_info']['variants'][i]['url']
@@ -76,7 +78,7 @@ def getvideourl(url) :
 
 def searchformediaintweet(status) :
 	for key, value in status.items() :
-		if isstr(value) and value.endswith('.mp4') : # all twitter videos should be mp4s
+		if isstr(value) and value.split('?')[0].endswith('.mp4') : # all twitter videos should be mp4s
 			return value
 		elif isinstance(value, dict) :
 			media = searchformediaintweet(value)
@@ -88,7 +90,7 @@ def searchformediaintweet(status) :
 
 def searchformediaintweetlist(status) :
 	for value in status :
-		if isstr(value) and value.endswith('.mp4') : # all twitter videos should be mp4s
+		if isstr(value) and value.split('?')[0].endswith('.mp4') : # all twitter videos should be mp4s
 			return value
 		elif isinstance(value, dict) :
 			media = searchformediaintweet(value)
@@ -97,7 +99,6 @@ def searchformediaintweetlist(status) :
 			media = searchformediaintweetlist(value)
 			if media is not None : return media
 	return None
-
 
 def converturltogif(url) :
 	global length
@@ -113,7 +114,7 @@ def converturltogif(url) :
 	filesize = None
 	estimatedsize = -1
 
-	url = url.split('?')[0] #remove any extraneous information after and including ?, if there is one
+	url = url.split('?')[0] # remove any extraneous information after and including ?, if there is one
 
 	try :
 		if url.endswith('.m3u8') :
@@ -141,7 +142,7 @@ def converturltogif(url) :
 				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
 				quality = '-b:v ' + quality
 			elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = 70000 / length
+				quality = 66000 / length
 				if quality > 8000 : quality = 8000
 				estimatedsize = length * float(quality)/8
 				quality = str(quality) + 'k'
@@ -171,10 +172,10 @@ def converturltogif(url) :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
 			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = str(70000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(66000 / length) # ~75,000 seems to work best to keep it under 10mb
 				if float(quality) > 8000 : quality = 8000
 				estimatedsize = length * float(quality)/8
-				quality = str(quality) + 'k'
+				quality = str(quality)
 			elif length == 1 and filesize/8192 > 8000 :
 				quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 				estimatedsize = 1
@@ -200,7 +201,7 @@ def converturltogif(url) :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
 			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = str(75000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(68000 / length) # ~75,000 seems to work best to keep it under 10mb
 				estimatedsize = 8000 # 80,000 / 8
 			print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
 			call = 'ffmpeg ' + inputoptions + ' -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
@@ -412,7 +413,7 @@ def reset() :
 	endtime = 0
 
 
-if __name__ == "__main__" :
+if __name__ == '__main__' :
 	global api
 	global token
 	global endtime
@@ -428,13 +429,13 @@ if __name__ == "__main__" :
 	colorama.init()
 
 	# telegram bot auth token (given by @BotFather upon your bot's creation)
-	token = ''
+	token = None
 
 	# the id of the bot itself
-	botID = 0
+	botID = None
 
 	# initialize twitter
-	api = ''
+	api = None
 
 	# credentials = {
 	# 	'telegramAccessToken' : 'yyyyyyyyy:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -453,11 +454,14 @@ if __name__ == "__main__" :
 		credentials = json.load(userinfo)
 		token = credentials['telegramAccessToken']
 		botID = credentials['telegramBotID']
-		api = twitter.Api(consumer_key = credentials['twitter']['consumerKey'], consumer_secret = credentials['twitter']['consumerSecret'], access_token_key = credentials['twitter']['accessTokenKey'], access_token_secret = credentials['twitter']['accessTokenSecret'], tweet_mode='extended')
+		try : api = twitter.Api(consumer_key = credentials['twitter']['consumerKey'], consumer_secret = credentials['twitter']['consumerSecret'], access_token_key = credentials['twitter']['accessTokenKey'], access_token_secret = credentials['twitter']['accessTokenSecret'], tweet_mode='extended')
+		except : print(' (failed to initialize twitter)... ', end='', flush= True)
 		#print(json.dumps(credentials, indent=2))
 	print('success.\n')
 
-	loadloop = ['|', '/', '―', '\\']
+	loadloop = ['|', '/', '―', '\\'] # replace with whatever text-based loading icons you want
+
+	# don't touch these
 	loadframes = len(loadloop) - 1
 	loadindex = 0
 
@@ -591,6 +595,7 @@ if __name__ == "__main__" :
 										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I wasn\'t able to convert that!')
 										checkresponse(response)
+										print(updateList[i])
 								else :
 									print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
 									print('apologizing...', end='', flush=True)
