@@ -271,8 +271,7 @@ def istimecodeformat(timecode) :
 	try :
 		timecode = timecode.split(':')
 		for potentialfloat in timecode :
-			if not IsFloat(potentialfloat) :
-				return False
+			if IsFloat(potentialfloat) is None : return False
 		return True
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -389,8 +388,7 @@ def checkresponsesilent(response) :
 			if 'description' in response : print(' reason: ' + response['description'])
 			else : print()
 			return False
-		else :
-			return response
+		else : return response
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('\r( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
@@ -567,7 +565,7 @@ if __name__ == '__main__' :
 									
 									print('converting to gif...', end='', flush=True)
 									finalsize = converturltogif(videourl)
-									if finalsize and finalsize > 1024 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave the file or something
+									if finalsize and finalsize > 1024 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave an empty file or something
 										pcent = percent(finalsize, estimatedsize)
 										color = ''
 										if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
@@ -614,9 +612,7 @@ if __name__ == '__main__' :
 							
 				# clear update list
 				mostrecentupdate = updateList[-1]['update_id']
-			else :
-				time.sleep(1)	# wait a second before trying again after 
-		else :					# an error, or the update list is empty
-			time.sleep(1)
+			else : time.sleep(1) # wait a second before trying again after 
+		else : time.sleep(1) # an error, or the update list is empty
 	# end while loop
 	
