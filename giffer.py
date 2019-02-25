@@ -121,7 +121,6 @@ def converturltogif(url) :
 			quality = '-c copy'
 			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			subprocess.call(call.split())
-			return True
 		elif url.endswith('.mp4') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
 			if response.status_code == 200 :
@@ -154,7 +153,6 @@ def converturltogif(url) :
 			else : quality = '-c copy'
 			call = 'ffmpeg ' + inputoptions + ' -i temp.mp4 ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			subprocess.call(call.split())
-			return True
 		elif url.endswith('.webm') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
 			if response.status_code == 200 :
@@ -172,7 +170,7 @@ def converturltogif(url) :
 				quality = userquality
 				estimatedsize = length * float(userquality)/8
 			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = str(66000 / length) # ~75,000 seems to work best to keep it under 10mb
+				quality = str(64000 / length) # ~65,000 seems to work best to keep it under 8mb
 				if float(quality) > 8000 : quality = 8000
 				estimatedsize = length * float(quality)/8
 				quality = str(quality)
@@ -183,7 +181,6 @@ def converturltogif(url) :
 			print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
 			call = 'ffmpeg ' + inputoptions + ' -i temp.webm -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			subprocess.call(call.split())
-			return True
 		elif url.endswith('.gif') :
 			response = requests.get(url, stream=True) # stream=True IS REQUIRED
 			if response.status_code == 200 :
@@ -207,7 +204,10 @@ def converturltogif(url) :
 			call = 'ffmpeg ' + inputoptions + ' -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
 			#print('( ' + call, end=' )...')
 			subprocess.call(call.split())
-			return True
+
+		if os.path.isfile('tempgif.mp4') : # check to make sure the file exists
+			return os.path.getsize('tempgif.mp4') / 1024 # return the size of the converted file (and divide by 1024 to get kilobytes)
+		else : return False # if the file doesn't exist, clearly conversion failed
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
@@ -259,10 +259,6 @@ def FFprobe(filename) :
 	elif starttime > 0 :
 		length = length - starttime
 	return bitrate, width, height, length, filesize
-
-def sizeofconvertedgif() :
-	try : return os.path.getsize('tempgif.mp4') / 1024 # convert to kilobytes
-	except : return -1
 
 def prettysize(filesize) :
 	if filesize > 1000 : return str(round(filesize / 1024, 2)) + 'MB'
@@ -389,9 +385,9 @@ def checkresponsesilent(response) :
 	try :
 		response = response.json()
 		if not response['ok'] :
-			print('\rfailed.')
-			if 'description' in response :
-				print('reason: ' + response['description'])
+			print('\rfailed.', end='')
+			if 'description' in response : print(' reason: ' + response['description'])
+			else : print()
 			return False
 		else :
 			return response
@@ -570,25 +566,26 @@ if __name__ == '__main__' :
 									print('success. (', videourl, ')')
 									
 									print('converting to gif...', end='', flush=True)
-									if converturltogif(videourl) :
-										finalsize = sizeofconvertedgif()
+									finalsize = converturltogif(videourl)
+									if finalsize and finalsize > 1024 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave the file or something
 										pcent = percent(finalsize, estimatedsize)
 										color = ''
 										if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
 										elif pcent < 100 : color = colorama.Fore.LIGHTGREEN_EX
 										finalcolor = ''
 										if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
-											
+										
 										print('success. ( ' + finalcolor, prettysize(finalsize), colorama.Style.RESET_ALL + '/', prettysize(estimatedsize), ': ' + color, pcent, '%' + colorama.Style.RESET_ALL + ' )' , sep='')
 										print('sending gif...', end='', flush=True)
 										if command == 'linkonly' :
 											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
 										else :
 											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id'])
-										gif = open('tempgif.mp4', 'rb')
-										telegramfile = {'document': gif}
-										sentFile = requests.get(request, files=telegramfile)
-										checkresponsetime(sentFile, commandstarttime)
+										with open('tempgif.mp4', 'rb') as gif :
+											telegramfile = {'document': gif}
+											sentFile = requests.get(request, files=telegramfile)
+											checkresponsetime(sentFile, commandstarttime)
+										os.remove('tempgif.mp4') # delete file to prevent sending the wrong file in the future
 									else :
 										print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
 										print('apologizing...', end='', flush=True)
