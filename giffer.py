@@ -565,7 +565,7 @@ if __name__ == '__main__' :
 									
 									print('converting to gif...', end='', flush=True)
 									finalsize = converturltogif(videourl)
-									if finalsize and finalsize > 1024 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave an empty file or something
+									if finalsize and finalsize > 1 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave an empty file or something
 										pcent = percent(finalsize, estimatedsize)
 										color = ''
 										if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
