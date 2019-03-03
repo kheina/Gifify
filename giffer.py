@@ -101,6 +101,76 @@ def searchformediaintweetlist(status) :
 	return None
 
 def converturltogif(url) :
+	url = url.split('?')[0] # remove any extraneous information after and including ?, if there is one
+	urllower = url.lower()
+
+	call = ''
+	try :
+		if urllower.endswith('.m3u8') :
+			quality = '-c copy'
+			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+			subprocess.call(call.split())
+		elif urllower.endswith('.mp4') and downloadfile(url, 'temp.mp4') :
+			call = convertmp4()
+
+		elif urllower.endswith('.webm') and downloadfile(url, 'temp.webm') :
+			call = convertwebm()
+
+		elif urllower.endswith('.mov') and downloadfile(url, 'temp.mov') :
+			call = convertmov()
+			
+		elif urllower.endswith('.gif') and downloadfile(url, 'temp.gif') :
+			call = convertgif()
+
+		elif urllower.endswith('.swf') and downloadfile(url, 'temp.swf') :
+			call = convertswf()
+
+		if os.path.isfile('tempgif.mp4') : # check to make sure the file exists
+			finalsize = os.path.getsize('tempgif.mp4') / 1024
+			if finalsize > 1 : return finalsize # return the size of the converted file (and divide by 1024 to get kilobytes)
+		# if the file doesn't exist, clearly conversion failed
+		print('failed. ( ', call ,' )', sep='', flush=True)
+		return False
+	except Exception as e :
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		return False
+
+def convertlocalfile(filename) :
+	urllower = filename.lower()
+	call = ''
+	try :
+		if urllower.endswith('.m3u8') :
+			quality = '-c copy'
+			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an gif.mp4 -y'
+			subprocess.call(call.split())
+		elif urllower.endswith('.mp4') :
+			call = convertmp4(filename=filename)
+
+		elif urllower.endswith('.webm') :
+			call = convertwebm(filename=filename)
+
+		elif urllower.endswith('.mov') :
+			call = convertmov(filename=filename)
+			
+		elif urllower.endswith('.gif') :
+			call = convertgif(filename=filename)
+
+		elif urllower.endswith('.swf') :
+			call = convertswf(filename=filename)
+
+		if os.path.isfile('gif.mp4') : # check to make sure the file exists
+			finalsize = os.path.getsize('gif.mp4') / 1024
+			if finalsize > 1 : return finalsize # return the size of the converted file (and divide by 1024 to get kilobytes)
+		# if the file doesn't exist, clearly conversion failed
+		print('failed. ( ', call ,' )', sep='', flush=True)
+		return False
+	except Exception as e :
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		return False
+
+def convertmp4(filename='temp.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -108,140 +178,222 @@ def converturltogif(url) :
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
 	height = 1080
-	ar = '16:9'
 	misc = '-pix_fmt yuv420p'
 	quality = '4000'
 	filesize = None
 	estimatedsize = -1
+	bitrate, width, height, length, filesize = FFprobe(filename)
+	rescale = False
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+		rescale = True
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+		rescale = True
+	estimatedsize = (bitrate/8192)*length
+	if float(userquality) > 0 :
+		quality = userquality + 'k'
+		estimatedsize = length * float(userquality)/8
+		print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
+		quality = '-b:v ' + quality
+	elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = 66000 / length
+		if quality > 8000 : quality = 8000
+		estimatedsize = length * float(quality)/8
+		quality = str(quality) + 'k'
+		print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
+		quality = '-b:v ' + quality
+	elif endtime > 0 or starttime > 0 :
+		quality = '-c copy'
+		print('(cutting to ', round(length, 2), 's, lossless)...', sep='', end='', flush=True)
+	else : quality = '-c copy'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	subprocess.call(call.split())
+	return call
 
-	url = url.split('?')[0] # remove any extraneous information after and including ?, if there is one
+def convertwebm(filename='temp.webm') :
+	global length
+	global bitrate
+	global quality
+	global inputoptions
+	global estimatedsize
+	width = 1920  # assume worst case scenarios
+	height = 1080
+	misc = '-pix_fmt yuv420p'
+	quality = '4000'
+	filesize = None
+	estimatedsize = -1
+	bitrate, width, height, length, filesize = FFprobe(filename)
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+	elif width % 2 != 0 or height % 2 != 0 :
+		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
+	estimatedsize = length * float(quality)/8
+	if float(userquality) > 0 :
+		quality = userquality
+		estimatedsize = length * float(userquality)/8
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = str(63500 / length) # ~65,000 seems to work best to keep it under 8mb
+		if float(quality) > 8000 : quality = 8000
+		estimatedsize = length * float(quality)/8
+		quality = str(quality)
+	elif length == 1 and filesize/8192 > 8000 :
+		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
+		estimatedsize = 1
+	
+	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	subprocess.call(call.split())
+	return call
 
-	try :
-		if url.endswith('.m3u8') :
-			quality = '-c copy'
-			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
-			subprocess.call(call.split())
-		elif url.endswith('.mp4') :
-			response = requests.get(url, stream=True) # stream=True IS REQUIRED
-			if response.status_code == 200 :
-				with open('temp.mp4', 'wb') as tobegif :
-					shutil.copyfileobj(response.raw, tobegif)
-			bitrate, width, height, length, filesize = FFprobe('temp.mp4')
-			rescale = False
-			if width > 1280 and width >= height :
-				misc = misc + ' -vf scale=1280:-2'
-				rescale = True
-			elif height > 1280 and height > width :
-				misc = misc + ' -vf scale=-2:1280'
-				rescale = True
-			estimatedsize = (bitrate/8192)*length
-			if float(userquality) > 0 :
-				quality = userquality + 'k'
-				estimatedsize = length * float(userquality)/8
-				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
-				quality = '-b:v ' + quality
-			elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = 66000 / length
-				if quality > 8000 : quality = 8000
-				estimatedsize = length * float(quality)/8
-				quality = str(quality) + 'k'
-				print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
-				quality = '-b:v ' + quality
-			elif endtime > 0 or starttime > 0 :
-				quality = '-c copy'
-				print('(cutting to ', round(length, 2), 's, lossless)...', sep='', end='', flush=True)
-			else : quality = '-c copy'
-			call = 'ffmpeg ' + inputoptions + ' -i temp.mp4 ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
-			subprocess.call(call.split())
-		elif url.endswith('.webm') :
-			response = requests.get(url, stream=True) # stream=True IS REQUIRED
-			if response.status_code == 200 :
-				with open('temp.webm', 'wb') as tobegif :
-					shutil.copyfileobj(response.raw, tobegif)
-			bitrate, width, height, length, filesize = FFprobe('temp.webm')
-			if width > 1280 and width >= height :
-				misc = misc + ' -vf scale=1280:-2'
-			elif height > 1280 and height > width :
-				misc = misc + ' -vf scale=-2:1280'
-			elif width % 2 != 0 or height % 2 != 0 :
-				misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
-			estimatedsize = length * float(quality)/8
-			if float(userquality) > 0 :
-				quality = userquality
-				estimatedsize = length * float(userquality)/8
-			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = str(64000 / length) # ~65,000 seems to work best to keep it under 8mb
-				if float(quality) > 8000 : quality = 8000
-				estimatedsize = length * float(quality)/8
-				quality = str(quality)
-			elif length == 1 and filesize/8192 > 8000 :
-				quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
-				estimatedsize = 1
-			
-			print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-			call = 'ffmpeg ' + inputoptions + ' -i temp.webm -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
-			subprocess.call(call.split())
-		elif url.endswith('.gif') :
-			response = requests.get(url, stream=True) # stream=True IS REQUIRED
-			if response.status_code == 200 :
-				with open('temp.gif', 'wb') as tobegif :
-					shutil.copyfileobj(response.raw, tobegif)
-			bitrate, width, height, length, filesize = FFprobe('temp.gif')
-			if width > 1280 and width >= height :
-				misc = misc + ' -vf scale=1280:-2'
-			elif height > 1280 and height > width :
-				misc = misc + ' -vf scale=-2:1280'
-			elif width % 2 != 0 or height % 2 != 0 :
-				misc = misc + ' -vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
-			estimatedsize = length * float(quality)/8
-			if float(userquality) > 0 :
-				quality = userquality
-				estimatedsize = length * float(userquality)/8
-			elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-				quality = str(68000 / length) # ~75,000 seems to work best to keep it under 10mb
-				estimatedsize = 8000 # 80,000 / 8
-			print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-			call = 'ffmpeg ' + inputoptions + ' -i temp.gif -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
-			#print('( ' + call, end=' )...')
-			subprocess.call(call.split())
+def convertmov(filename='temp.mov') :
+	global length
+	global bitrate
+	global quality
+	global inputoptions
+	global estimatedsize
+	width = 1920  # assume worst case scenarios
+	height = 1080
+	misc = '-pix_fmt yuv420p'
+	quality = '4000'
+	filesize = None
+	estimatedsize = -1
+	bitrate, width, height, length, filesize = FFprobe(filename)
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+	elif width % 2 != 0 or height % 2 != 0 :
+		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
+	estimatedsize = length * float(quality)/8
+	if float(userquality) > 0 :
+		quality = userquality
+		estimatedsize = length * float(userquality)/8
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = str(64000 / length) # ~65,000 seems to work best to keep it under 8mb
+		if float(quality) > 8000 : quality = 8000
+		estimatedsize = length * float(quality)/8
+		quality = str(quality)
+	elif length == 1 and filesize/8192 > 8000 :
+		quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
+		estimatedsize = 1
+	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	subprocess.call(call.split())
+	return call
 
-		if os.path.isfile('tempgif.mp4') : # check to make sure the file exists
-			return os.path.getsize('tempgif.mp4') / 1024 # return the size of the converted file (and divide by 1024 to get kilobytes)
-		else : return False # if the file doesn't exist, clearly conversion failed
-	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
-		return False
+def convertgif(filename='temp.gif') :
+	global length
+	global bitrate
+	global quality
+	global inputoptions
+	global estimatedsize
+	width = 1920  # assume worst case scenarios
+	height = 1080
+	misc = '-pix_fmt yuv420p'
+	quality = '4000'
+	filesize = None
+	estimatedsize = -1
+	bitrate, width, height, length, filesize = FFprobe(filename)
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+	elif width % 2 != 0 or height % 2 != 0 :
+		misc = misc + ' -vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
+	estimatedsize = length * float(quality)/8
+	if float(userquality) > 0 :
+		quality = userquality
+		estimatedsize = length * float(userquality)/8
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = str(68000 / length) # ~68,000 seems to work best to keep it under 8MB
+		estimatedsize = 8000 # 80,000 / 8
+	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	#print('( ' + call, end=' )...')
+	subprocess.call(call.split())
+	return call
+
+def convertswf(filename='temp.swf') :
+	global length
+	global bitrate
+	global quality
+	global inputoptions
+	global estimatedsize
+	width = 1920  # assume worst case scenarios
+	height = 1080
+	misc = '-pix_fmt yuv420p'
+	quality = '4000'
+	filesize = None
+	estimatedsize = -1
+	bitrate, width, height, length, filesize = FFprobe(filename)
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+	elif width % 2 != 0 or height % 2 != 0 :
+		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
+	estimatedsize = length * float(quality)/8
+	if float(userquality) > 0 :
+		quality = userquality
+		estimatedsize = length * float(userquality)/8
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = str(63500 / length) # ~65,000 seems to work best to keep it under 8mb
+		if float(quality) > 8000 : quality = 8000
+		estimatedsize = length * float(quality)/8
+		quality = str(quality)
+	elif length == 1 and filesize/8192 > 8000 :
+		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
+		estimatedsize = 1
+	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	subprocess.call(call.split())
+	return call
+
+def downloadfile(url, filename) :
+	response = requests.get(url, stream=True) # stream=True IS REQUIRED
+	if response.status_code == 200 :
+		with open(filename, 'wb') as tobegif :
+			shutil.copyfileobj(response.raw, tobegif)
+		return True
+	return False
+	
 
 def FFprobe(filename) :
 	global endtime
 	global starttime
 	global userlength
-	call = 'ffprobe -v quiet -print_format json -show_streams ' + filename
-	ffprobe = subprocess.check_output(call.split()).decode('utf-8')
-	ffprobe = json.loads(ffprobe)
 	bitrate = -1 # set defaults as worst-case scenario
 	length = 1
 	width = 1920
 	height = 1080
 	filesize = None
-	for i in range(len(ffprobe['streams'])) :
-		if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'video' : # ffprobe shows gif codec type as being video, so this still works
-			if 'bit_rate' in ffprobe['streams'][i] :
-				bitrate = int(ffprobe['streams'][i]['bit_rate'])
-			if 'width' in ffprobe['streams'][i] :
-				width = int(ffprobe['streams'][i]['width'])
-			if 'height' in ffprobe['streams'][i] :
-				height = int(ffprobe['streams'][i]['height'])
-			if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
-				length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
-			if 'duration' in ffprobe['streams'][i] :
-				length = float(ffprobe['streams'][i]['duration']) # already seconds
-		if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'audio' :
-			if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
-				length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
-			if 'duration' in ffprobe['streams'][i] :
-				length = float(ffprobe['streams'][i]['duration']) # already seconds
+	try :
+		call = 'ffprobe -v quiet -print_format json -show_streams ' + filename
+		ffprobe = subprocess.check_output(call.split()).decode('utf-8')
+		ffprobe = json.loads(ffprobe)
+		for i in range(len(ffprobe['streams'])) :
+			if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'video' : # ffprobe shows gif codec type as being video, so this still works
+				if 'bit_rate' in ffprobe['streams'][i] :
+					bitrate = int(ffprobe['streams'][i]['bit_rate'])
+				if 'width' in ffprobe['streams'][i] and ffprobe['streams'][i]['width'] > 0 :
+					width = int(ffprobe['streams'][i]['width'])
+				if 'height' in ffprobe['streams'][i] and ffprobe['streams'][i]['height'] > 0 :
+					height = int(ffprobe['streams'][i]['height'])
+				if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
+					length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
+				if 'duration' in ffprobe['streams'][i] :
+					length = float(ffprobe['streams'][i]['duration']) # already seconds
+			if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'audio' :
+				if 'tags' in ffprobe['streams'][i] and 'DURATION' in ffprobe['streams'][i]['tags'] :
+					length = getsecondsfromtimecode(ffprobe['streams'][i]['tags']['DURATION'])
+				if 'duration' in ffprobe['streams'][i] :
+					length = float(ffprobe['streams'][i]['duration']) # already seconds
+	except Exception as e :
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 
 	filesize = os.path.getsize(filename) * 8 # convert to bits
 	if bitrate < 0 :
@@ -295,13 +447,15 @@ def getsecondsfromtimecode(timecode) :
 		return 1
 
 def linkonly(url) :
-	url = url.split('?')[0] #remove any extraneous information after and including ?, if there is one
+	global acceptedtypes
+	url = url.split('?')[0] # remove any extraneous information after and including ?, if there is one
+	urllower = url.lower()
+	for extension in acceptedtypes :
+		if urllower.endswith('.' + extension) : return url
 	if '//twitter.com' in url and '/status/' in url :
 		return getvideourl(url)
-	elif url.endswith('.mp4') or url.endswith('.webm') or url.endswith('.gif') :
-		return url
-	elif url.endswith('.gifv') :
-		return url.replace('.gifv', '.mp4')
+	elif urllower.endswith('.gifv') :
+		return url[:-4] + 'mp4' # replace 'gifv' extension with 'mp4'
 	else :
 		return parseformedia(url)
 
@@ -313,7 +467,7 @@ def geturlfromdocument(document) :
 			request = 'https://api.telegram.org/bot' + token + '/getFile?file_id=' + document['file_id']
 			response = requests.get(request)
 			response = checkresponsesilent(response)
-			if response is not False :
+			if response is not None :
 				return 'https://api.telegram.org/file/bot' + token + '/' + response['result']['file_path']
 
 def parseformedia(url) :
@@ -321,10 +475,11 @@ def parseformedia(url) :
 		session = HTMLSession()
 		page = session.get(url)
 		source = None # search gif first, since they're more likely to appear on a page as 'filler' than videos, so the videos will override if found
-		for sourcetype in ['img[src*=".gif"]', 'source[src*=".webm"]', 'source[src*=".mp4"]'] : # search mp4 after webm since it converts better
+		for sourcetype in ['img[src*=".gif"]', 'object[data*=".swf"]', 'embed[src*=".swf"]', 'source[src*=".mov"]', 'source[src*=".webm"]', 'source[src*=".mp4"]'] :
 			temp = page.html.find(sourcetype, first=True)
 			if temp is not None : source = temp
-		return source.attrs['src']
+		if 'src' in source.attrs : return source.attrs['src']
+		if 'data' in source.attrs : return source.attrs['data']
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
@@ -359,6 +514,7 @@ def checkresponse(response) :
 			print('failed.')
 			if 'description' in response :
 				print('reason: ' + response['description'])
+				return response['description']
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
@@ -374,6 +530,7 @@ def checkresponsetime(response, starttime) :
 			print('failed.')
 			if 'description' in response :
 				print('reason: ' + response['description'])
+				return response['description']
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
@@ -387,13 +544,13 @@ def checkresponsesilent(response) :
 			print('\rfailed.', end='')
 			if 'description' in response : print(' reason: ' + response['description'])
 			else : print()
-			return False
-		else : return response
+			return None
+		return response
 	except Exception as e :
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		print('\r( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		print(response, end='')
-		return False
+		return None
 
 def donothing() :
 	pass
@@ -406,6 +563,66 @@ def reset() :
 	userquality = 0
 	endtime = 0
 
+def parsequery(query, url, command) :
+	global endtime
+	global starttime
+	global userlength
+	global userquality
+	global inputoptions
+	inputoptions = ''
+	starttime = 0
+	userquality = 0
+	endtime = 0
+	userlength = 1 # default
+	if len(query) > 0 :
+		if command == '' and query[0][0] != '/' :
+			command = 'linkonly'
+
+		for j in range(len(query)) :
+			if len(query[j]) >= 4 and query[j].startswith('http') :
+				url = query[j]
+			elif query[j] == 'length' and len(query) > j+1 :
+				userlength = getsecondsfromtimecode(query[j+1])
+				j = j + 1
+			elif 'length=' in query[j] :
+				queryj = query[j].split('=')
+				if len(queryj) >= 2 : userlength = getsecondsfromtimecode(queryj[1])
+			elif query[j] == 'bitrate' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+				userquality = query[j+1]
+				j = j + 1
+			elif 'bitrate=' in query[j] :
+				queryj = query[j].split('=')
+				if len(queryj) >= 2 and istimecodeformat(queryj[1]) : userquality = queryj[1]
+			elif query[j] == 'start' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+				starttime = getsecondsfromtimecode(query[j+1])
+				inputoptions = inputoptions + ' -ss ' + str(starttime)
+				j = j + 1
+			elif 'start=' in query[j] :
+				queryj = query[j].split('=')
+				if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
+					starttime = getsecondsfromtimecode(queryj[1])
+					inputoptions = inputoptions + ' -ss ' + str(starttime)
+			elif query[j] == 'end' and len(query) > j+1 and istimecodeformat(query[j+1]) :
+				endtime = getsecondsfromtimecode(query[j+1])
+				inputoptions = inputoptions + ' -to ' + str(endtime)
+				j = j + 1
+			elif 'end=' in query[j] :
+				queryj = query[j].split('=')
+				if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
+					endtime = getsecondsfromtimecode(queryj[1])
+					inputoptions = inputoptions + ' -to ' + str(endtime)
+			elif istimecodeformat(query[j]) :
+				userlength = getsecondsfromtimecode(query[j])
+	return url, command
+
+def getpercentandcolors(finalsize, estimatedsize) :
+	pcent = percent(finalsize, estimatedsize)
+	color = ''
+	if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
+	elif pcent < 100 : color = colorama.Fore.LIGHTGREEN_EX
+	finalcolor = ''
+	if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
+	return pcent, color, finalcolor
 
 if __name__ == '__main__' :
 	global api
@@ -453,6 +670,16 @@ if __name__ == '__main__' :
 		#print(json.dumps(credentials, indent=2))
 	print('success.\n')
 
+	if len(sys.argv) > 1 :
+		parsequery(sys.argv[2:], sys.argv[1], '/localfile')
+		print('converting...', end='', flush=True)
+		finalsize = convertlocalfile(sys.argv[1])
+		if finalsize :
+			pcent, color, finalcolor = getpercentandcolors(finalsize, estimatedsize)
+			print('success. ( ' + finalcolor, prettysize(finalsize), colorama.Style.RESET_ALL + '/', prettysize(estimatedsize), ': ' + color, pcent, '%' + colorama.Style.RESET_ALL + ' )' , sep='')
+			print('saved as gif.mp4')
+		exit(0)
+
 	loadloop = ['|', '/', '―', '\\'] # replace with whatever text-based loading icons you want
 
 	# don't touch these
@@ -461,7 +688,7 @@ if __name__ == '__main__' :
 
 	commands = ['linkonly', 'geturlfromdocument']
 	othercommands = ['start', 'help']
-	acceptedtypes = ['webm', 'mp4', 'gif']
+	acceptedtypes = ['webm', 'mp4', 'gif', 'mov', 'swf']
 	
 	mostrecentupdate = 0
 	while (True) :
@@ -474,7 +701,7 @@ if __name__ == '__main__' :
 			exit(0)
 		except : donothing() # sometimes this crashes for no reason
 		updateList = checkresponsesilent(response)
-		if updateList is not False :
+		if updateList :
 			updateList = updateList['result']
 			if len(updateList) > 0 :
 				print('\rupdates:', len(updateList))
@@ -486,11 +713,6 @@ if __name__ == '__main__' :
 							commandstarttime = time.time()
 							url = ''
 							command = ''
-							inputoptions = ''
-							starttime = 0
-							userquality = 0
-							endtime = 0
-							userlength = 1 # default
 							if 'from' in updateList[i]['message'] :
 								if 'username' in updateList[i]['message']['from'] :
 									print('(from ', updateList[i]['message']['from']['username'], ')', sep='', end=' ')
@@ -516,45 +738,7 @@ if __name__ == '__main__' :
 								command = query[0][1:] # remove the slash
 
 							print(query, time.ctime(commandstarttime))
-							if len(query) > 0 :
-								if command == '' and query[0][0] != '/' :
-									command = 'linkonly'
-
-								for j in range(len(query)) :
-									if len(query[j]) >= 4 and query[j].startswith('http') :
-										url = query[j]
-									elif query[j] == 'length' and len(query) > j+1 :
-										userlength = getsecondsfromtimecode(query[j+1])
-										j = j + 1
-									elif 'length=' in query[j] :
-										queryj = query[j].split('=')
-										if len(queryj) >= 2 : userlength = getsecondsfromtimecode(queryj[1])
-									elif query[j] == 'bitrate' and len(query) > j+1 and istimecodeformat(query[j+1]) :
-										userquality = query[j+1]
-										j = j + 1
-									elif 'bitrate=' in query[j] :
-										queryj = query[j].split('=')
-										if len(queryj) >= 2 and istimecodeformat(queryj[1]) : userquality = queryj[1]
-									elif query[j] == 'start' and len(query) > j+1 and istimecodeformat(query[j+1]) :
-										starttime = getsecondsfromtimecode(query[j+1])
-										inputoptions = inputoptions + ' -ss ' + str(starttime)
-										j = j + 1
-									elif 'start=' in query[j] :
-										queryj = query[j].split('=')
-										if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
-											starttime = getsecondsfromtimecode(queryj[1])
-											inputoptions = inputoptions + ' -ss ' + str(starttime)
-									elif query[j] == 'end' and len(query) > j+1 and istimecodeformat(query[j+1]) :
-										endtime = getsecondsfromtimecode(query[j+1])
-										inputoptions = inputoptions + ' -to ' + str(endtime)
-										j = j + 1
-									elif 'end=' in query[j] :
-										queryj = query[j].split('=')
-										if len(queryj) >= 2 and istimecodeformat(queryj[1]) :
-											endtime = getsecondsfromtimecode(queryj[1])
-											inputoptions = inputoptions + ' -to ' + str(endtime)
-									elif istimecodeformat(query[j]) :
-										userlength = getsecondsfromtimecode(query[j])
+							url, command = parsequery(query, url, command)
 
 							if command in commands :
 								method = getattr(giffer, command)
@@ -565,14 +749,8 @@ if __name__ == '__main__' :
 									
 									print('converting to gif...', end='', flush=True)
 									finalsize = converturltogif(videourl)
-									if finalsize and finalsize > 1 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave an empty file or something
-										pcent = percent(finalsize, estimatedsize)
-										color = ''
-										if pcent > 102.4 : color = colorama.Fore.LIGHTRED_EX
-										elif pcent < 100 : color = colorama.Fore.LIGHTGREEN_EX
-										finalcolor = ''
-										if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
-										
+									if finalsize : #and finalsize > 1 : # a gif should be at least 1KB, makes sure ffmpeg didn't leave an empty file or something
+										pcent, color, finalcolor = getpercentandcolors(finalsize, estimatedsize)										
 										print('success. ( ' + finalcolor, prettysize(finalsize), colorama.Style.RESET_ALL + '/', prettysize(estimatedsize), ': ' + color, pcent, '%' + colorama.Style.RESET_ALL + ' )' , sep='')
 										print('sending gif...', end='', flush=True)
 										if command == 'linkonly' :
@@ -585,7 +763,6 @@ if __name__ == '__main__' :
 											checkresponsetime(sentFile, commandstarttime)
 										os.remove('tempgif.mp4') # delete file to prevent sending the wrong file in the future
 									else :
-										print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
 										print('apologizing...', end='', flush=True)
 										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I wasn\'t able to convert that!')
@@ -612,7 +789,9 @@ if __name__ == '__main__' :
 							
 				# clear update list
 				mostrecentupdate = updateList[-1]['update_id']
-			else : time.sleep(1) # wait a second before trying again after 
+			else : time.sleep(1) # wait a second before trying again 
 		else : time.sleep(1) # an error, or the update list is empty
 	# end while loop
-	
+
+# to convert a file via terminal, you can call this command (assuming it's under 1280 pixels and the output is under 8MB)
+# ffmpeg -i file_to_convert -pix_fmt yuv420p -an output.mp4 -y
