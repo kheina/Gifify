@@ -12,21 +12,21 @@ import sys
 import os
 
 def IsInt(s):
-    try: 
+    try :
         return int(s)
-    except ValueError:
+    except ValueError :
         return None
 
 def IsFloat(s):
-    try: 
+    try :
         return float(s)
-    except ValueError:
+    except ValueError :
         return None
 
 def isstr(s):
-	try: 
+	try :
 		return isinstance(s, str)
-	except ValueError:
+	except ValueError :
 		return None
 
 
@@ -145,19 +145,19 @@ def convertlocalfile(filename) :
 			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an gif.mp4 -y'
 			subprocess.call(call.split())
 		elif urllower.endswith('.mp4') :
-			call = convertmp4(filename=filename)
+			call = convertmp4(filename=filename, out='gif.mp4')
 
 		elif urllower.endswith('.webm') :
-			call = convertwebm(filename=filename)
+			call = convertwebm(filename=filename, out='gif.mp4')
 
 		elif urllower.endswith('.mov') :
-			call = convertmov(filename=filename)
+			call = convertmov(filename=filename, out='gif.mp4')
 			
 		elif urllower.endswith('.gif') :
-			call = convertgif(filename=filename)
+			call = convertgif(filename=filename, out='gif.mp4')
 
 		elif urllower.endswith('.swf') :
-			call = convertswf(filename=filename)
+			call = convertswf(filename=filename, out='gif.mp4')
 
 		if os.path.isfile('gif.mp4') : # check to make sure the file exists
 			finalsize = os.path.getsize('gif.mp4') / 1024
@@ -170,7 +170,7 @@ def convertlocalfile(filename) :
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return False
 
-def convertmp4(filename='temp.mp4') :
+def convertmp4(filename='temp.mp4', out='tempgif.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -207,11 +207,11 @@ def convertmp4(filename='temp.mp4') :
 		quality = '-c copy'
 		print('(cutting to ', round(length, 2), 's, lossless)...', sep='', end='', flush=True)
 	else : quality = '-c copy'
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' ' + quality + ' ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' ' + quality + ' ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
-def convertwebm(filename='temp.webm') :
+def convertwebm(filename='temp.webm', out='tempgif.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -244,11 +244,11 @@ def convertwebm(filename='temp.webm') :
 		estimatedsize = 1
 	
 	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
-def convertmov(filename='temp.mov') :
+def convertmov(filename='temp.mov', out='tempgif.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -280,11 +280,11 @@ def convertmov(filename='temp.mov') :
 		quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 		estimatedsize = 1
 	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
-def convertgif(filename='temp.gif') :
+def convertgif(filename='temp.gif', out='tempgif.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -311,12 +311,12 @@ def convertgif(filename='temp.gif') :
 		quality = str(68000 / length) # ~68,000 seems to work best to keep it under 8MB
 		estimatedsize = 8000 # 80,000 / 8
 	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	#print('( ' + call, end=' )...')
 	subprocess.call(call.split())
 	return call
 
-def convertswf(filename='temp.swf') :
+def convertswf(filename='temp.swf', out='tempgif.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -348,7 +348,7 @@ def convertswf(filename='temp.swf') :
 		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
 		estimatedsize = 1
 	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -496,13 +496,6 @@ def help(update) :
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
 	checkresponse(response)
-
-def incrementloadloop() :
-	global loadloop
-	global loadindex
-	print(colorama.Fore.CYAN + '\r' + loadloop[loadindex] + ' ', end=colorama.Style.RESET_ALL)
-	loadindex = loadindex + 1
-	if loadindex > loadframes : loadindex = 0
 	
 def checkresponse(response) :
 	try :
@@ -628,8 +621,6 @@ if __name__ == '__main__' :
 	global api
 	global token
 	global endtime
-	global loadloop
-	global loadindex
 	global starttime
 	global userlength
 	global userquality
@@ -693,7 +684,10 @@ if __name__ == '__main__' :
 	mostrecentupdate = 0
 	while (True) :
 		request = 'https://api.telegram.org/bot' + token + '/getUpdates'
-		incrementloadloop()
+		print(colorama.Fore.CYAN + '\r' + loadloop[loadindex] + ' ', end=colorama.Style.RESET_ALL)
+		loadindex = loadindex + 1
+		if loadindex > loadframes : loadindex = 0
+
 		response = ''
 		try : response = requests.get(request + '?offset=' + str(mostrecentupdate + 1))
 		except KeyboardInterrupt :
@@ -792,6 +786,3 @@ if __name__ == '__main__' :
 			else : time.sleep(1) # wait a second before trying again 
 		else : time.sleep(1) # an error, or the update list is empty
 	# end while loop
-
-# to convert a file via terminal, you can call this command (assuming it's under 1280 pixels and the output is under 8MB)
-# ffmpeg -i file_to_convert -pix_fmt yuv420p -an output.mp4 -y
