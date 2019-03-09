@@ -759,14 +759,17 @@ if __name__ == '__main__' :
 									else :
 										print('apologizing...', end='', flush=True)
 										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I wasn\'t able to convert that!')
+										text = 'Sorry, I wasn\'t able to convert that!'
+										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
 										checkresponse(response)
 										print(updateList[i])
 								else :
 									print('failed. ( /', command, ' ', url,' )', sep='', flush=True)
 									print('apologizing...', end='', flush=True)
 									request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t support that filetype yet!\n\nTo see what I can do, try /start')
+									text = 'Sorry, I don\'t support that filetype yet!\n\nTo see what I can do, try /start'
+									if 't.co' in url : text = 'I\'m sorry, I can\'t convert shortened urls! Can you send the full url?\nie: `https://twitter.com/user/status/0000000000000000000000`&parse_mode=Markdown'
+									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
 									checkresponse(response)
 							elif command in othercommands and hasattr(giffer, command) :
 								method = getattr(giffer, command)
