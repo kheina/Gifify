@@ -108,7 +108,7 @@ def converturltogif(url) :
 	try :
 		if urllower.endswith('.m3u8') :
 			quality = '-c copy'
-			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an tempgif.mp4 -y'
+			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an gifify.mp4 -y'
 			subprocess.call(call.split())
 		elif urllower.endswith('.mp4') and downloadfile(url, 'temp.mp4') :
 			call = convertmp4()
@@ -125,8 +125,8 @@ def converturltogif(url) :
 		elif urllower.endswith('.swf') and downloadfile(url, 'temp.swf') :
 			call = convertswf()
 
-		if os.path.isfile('tempgif.mp4') : # check to make sure the file exists
-			finalsize = os.path.getsize('tempgif.mp4') / 1024
+		if os.path.isfile('gifify.mp4') : # check to make sure the file exists
+			finalsize = os.path.getsize('gifify.mp4') / 1024
 			if finalsize > 1 : return finalsize # return the size of the converted file (and divide by 1024 to get kilobytes)
 		# if the file doesn't exist, clearly conversion failed
 		print('failed. ( ', call ,' )', sep='', flush=True)
@@ -170,7 +170,7 @@ def convertlocalfile(filename) :
 		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
 		return False
 
-def convertmp4(filename='temp.mp4', out='tempgif.mp4') :
+def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -211,7 +211,7 @@ def convertmp4(filename='temp.mp4', out='tempgif.mp4') :
 	subprocess.call(call.split())
 	return call
 
-def convertwebm(filename='temp.webm', out='tempgif.mp4') :
+def convertwebm(filename='temp.webm', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -248,7 +248,7 @@ def convertwebm(filename='temp.webm', out='tempgif.mp4') :
 	subprocess.call(call.split())
 	return call
 
-def convertmov(filename='temp.mov', out='tempgif.mp4') :
+def convertmov(filename='temp.mov', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -284,7 +284,7 @@ def convertmov(filename='temp.mov', out='tempgif.mp4') :
 	subprocess.call(call.split())
 	return call
 
-def convertgif(filename='temp.gif', out='tempgif.mp4') :
+def convertgif(filename='temp.gif', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -316,7 +316,7 @@ def convertgif(filename='temp.gif', out='tempgif.mp4') :
 	subprocess.call(call.split())
 	return call
 
-def convertswf(filename='temp.swf', out='tempgif.mp4') :
+def convertswf(filename='temp.swf', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
@@ -649,7 +649,7 @@ if __name__ == '__main__' :
 	# 		"accessTokenSecret" : "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 	# 	}
 	# }
-	# credentials are saved in credentials.json in the format above
+	# credentials are saved in credentials.json in the format above (twitter not required)
 
 	print('loading credentials...', end='', flush= True)
 	with open('credentials.json') as userinfo :
@@ -751,11 +751,11 @@ if __name__ == '__main__' :
 											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
 										else :
 											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id'])
-										with open('tempgif.mp4', 'rb') as gif :
+										with open('gifify.mp4', 'rb') as gif :
 											telegramfile = {'document': gif}
 											sentFile = requests.get(request, files=telegramfile)
 											checkresponsetime(sentFile, commandstarttime)
-										os.remove('tempgif.mp4') # delete file to prevent sending the wrong file in the future
+										os.remove('gifify.mp4') # delete file to prevent sending the wrong file in the future
 									else :
 										print('apologizing...', end='', flush=True)
 										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
