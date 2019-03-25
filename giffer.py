@@ -3,6 +3,7 @@ import PIL.GifImagePlugin
 try : import ujson as json
 except : import json
 import subprocess
+import traceback
 import requests
 import colorama
 import twitter
@@ -73,7 +74,7 @@ def getvideourl(url) :
 		# twitter url doesn't have a media and video_info, need to search for media
 		media = searchformediaintweet(status)
 		if media : return media
-	except : donothing()
+	except : pass
 	print(status)
 
 def searchformediaintweet(status) :
@@ -125,6 +126,9 @@ def converturltogif(url) :
 		elif urllower.endswith('.swf') and downloadfile(url, 'temp.swf') :
 			call = convertswf()
 
+		elif urllower.endswith('.avi') and downloadfile(url, 'temp.avi') :
+			call = convertavi()
+
 		if os.path.isfile('gifify.mp4') : # check to make sure the file exists
 			finalsize = os.path.getsize('gifify.mp4') / 1024
 			if finalsize > 1 : return finalsize # return the size of the converted file (and divide by 1024 to get kilobytes)
@@ -132,8 +136,7 @@ def converturltogif(url) :
 		print('failed. ( ', call ,' )', sep='', flush=True)
 		return False
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 		return False
 
 def convertlocalfile(filename) :
@@ -159,6 +162,9 @@ def convertlocalfile(filename) :
 		elif urllower.endswith('.swf') :
 			call = convertswf(filename=filename, out='gif.mp4')
 
+		elif urllower.endswith('.avi') :
+			call = convertavi(filename=filename, out='gif.mp4')
+
 		if os.path.isfile('gif.mp4') : # check to make sure the file exists
 			finalsize = os.path.getsize('gif.mp4') / 1024
 			if finalsize > 1 : return finalsize # return the size of the converted file (and divide by 1024 to get kilobytes)
@@ -166,14 +172,14 @@ def convertlocalfile(filename) :
 		print('failed. ( ', call ,' )', sep='', flush=True)
 		return False
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 		return False
 
 def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
+	global userquality
 	global inputoptions
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
@@ -194,14 +200,14 @@ def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 	if float(userquality) > 0 :
 		quality = userquality + 'k'
 		estimatedsize = length * float(userquality)/8
-		print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
+		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'b/s)...', sep='', end='', flush=True)
 		quality = '-b:v ' + quality
 	elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
 		quality = 66000 / length
 		if quality > 8000 : quality = 8000
 		estimatedsize = length * float(quality)/8
 		quality = str(quality) + 'k'
-		print('(compressing, ', round(length, 2), 's @ ', quality, 'b/s)...', sep='', end='', flush=True)
+		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'b/s)...', sep='', end='', flush=True)
 		quality = '-b:v ' + quality
 	elif endtime > 0 or starttime > 0 :
 		quality = '-c copy'
@@ -215,12 +221,13 @@ def convertwebm(filename='temp.webm', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
+	global userquality
 	global inputoptions
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	misc = '-pix_fmt yuv420p'
-	quality = '4000'
+	quality = 4000
 	filesize = None
 	estimatedsize = -1
 	bitrate, width, height, length, filesize = FFprobe(filename)
@@ -230,21 +237,22 @@ def convertwebm(filename='temp.webm', out='gifify.mp4') :
 		misc = misc + ' -vf scale=-2:1280'
 	elif width % 2 != 0 or height % 2 != 0 :
 		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
-	estimatedsize = length * float(quality)/8
-	if float(userquality) > 0 :
+	estimatedsize = length * quality/8
+	userquality = float(userquality)
+	if userquality > 0 :
 		quality = userquality
-		estimatedsize = length * float(userquality)/8
+		estimatedsize = length * userquality/8
 	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-		quality = str(63500 / length) # ~65,000 seems to work best to keep it under 8mb
-		if float(quality) > 8000 : quality = 8000
-		estimatedsize = length * float(quality)/8
+		quality = 63500 / length # ~65,000 seems to work best to keep it under 8mb
+		if quality > 8000 : quality = 8000
+		estimatedsize = length * quality/8
 		quality = str(quality)
 	elif length == 1 and filesize/8192 > 8000 :
 		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
 		estimatedsize = 1
 	
-	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -252,35 +260,35 @@ def convertmov(filename='temp.mov', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
+	global userquality
 	global inputoptions
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	misc = '-pix_fmt yuv420p'
-	quality = '4000'
+	quality = 4000
 	filesize = None
 	estimatedsize = -1
-	bitrate, width, height, length, filesize = FFprobe(filename)
+	quality, width, height, length, filesize = FFprobe(filename)
 	if width > 1280 and width >= height :
 		misc = misc + ' -vf scale=1280:-2'
 	elif height > 1280 and height > width :
 		misc = misc + ' -vf scale=-2:1280'
 	elif width % 2 != 0 or height % 2 != 0 :
 		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
-	estimatedsize = length * float(quality)/8
-	if float(userquality) > 0 :
+	estimatedsize = length * quality/8
+	userquality = float(userquality)
+	if userquality > 0 :
 		quality = userquality
-		estimatedsize = length * float(userquality)/8
+		estimatedsize = length * quality/8
 	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-		quality = str(64000 / length) # ~65,000 seems to work best to keep it under 8mb
-		if float(quality) > 8000 : quality = 8000
-		estimatedsize = length * float(quality)/8
-		quality = str(quality)
+		quality = 64000 / length # ~65,000 seems to work best to keep it under 8mb
+		estimatedsize = length * quality/8
 	elif length == 1 and filesize/8192 > 8000 :
-		quality = '1500' # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
+		quality = 1500 # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 		estimatedsize = 1
-	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -288,12 +296,13 @@ def convertgif(filename='temp.gif', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
+	global userquality
 	global inputoptions
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	misc = '-pix_fmt yuv420p'
-	quality = '4000'
+	quality = 4000
 	filesize = None
 	estimatedsize = -1
 	bitrate, width, height, length, filesize = FFprobe(filename)
@@ -303,15 +312,16 @@ def convertgif(filename='temp.gif', out='gifify.mp4') :
 		misc = misc + ' -vf scale=-2:1280'
 	elif width % 2 != 0 or height % 2 != 0 :
 		misc = misc + ' -vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
-	estimatedsize = length * float(quality)/8
-	if float(userquality) > 0 :
+	estimatedsize = length * quality/8
+	userquality = float(userquality)
+	if userquality > 0 :
 		quality = userquality
-		estimatedsize = length * float(userquality)/8
+		estimatedsize = length * userquality/8
 	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-		quality = str(68000 / length) # ~68,000 seems to work best to keep it under 8MB
+		quality = 68000 / length # ~68,000 seems to work best to keep it under 8MB
 		estimatedsize = 8000 # 80,000 / 8
-	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	#print('( ' + call, end=' )...')
 	subprocess.call(call.split())
 	return call
@@ -320,35 +330,71 @@ def convertswf(filename='temp.swf', out='gifify.mp4') :
 	global length
 	global bitrate
 	global quality
+	global userquality
 	global inputoptions
 	global estimatedsize
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	misc = '-pix_fmt yuv420p'
-	quality = '4000'
+	quality = 4000
 	filesize = None
 	estimatedsize = -1
-	bitrate, width, height, length, filesize = FFprobe(filename)
+	quality, width, height, length, filesize = FFprobe(filename)
 	if width > 1280 and width >= height :
 		misc = misc + ' -vf scale=1280:-2'
 	elif height > 1280 and height > width :
 		misc = misc + ' -vf scale=-2:1280'
 	elif width % 2 != 0 or height % 2 != 0 :
 		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
-	estimatedsize = length * float(quality)/8
-	if float(userquality) > 0 :
+	estimatedsize = length * quality / 8
+	userquality = float(userquality)
+	if userquality > 0 :
 		quality = userquality
-		estimatedsize = length * float(userquality)/8
-	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
-		quality = str(63500 / length) # ~65,000 seems to work best to keep it under 8mb
-		if float(quality) > 8000 : quality = 8000
-		estimatedsize = length * float(quality)/8
-		quality = str(quality)
+		estimatedsize = length * quality / 8
 	elif length == 1 and filesize/8192 > 8000 :
-		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
+		quality = 1500 # there's no way to estimate what the bitrate or length is, so 1500 seems like
+		estimatedsize = 1 # a happy medium between quality and likelyhood the result will be under 10mb
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = 64000 / length # ~65,000 seems to work best to keep it under 8mb
+		estimatedsize = length * quality / 8
+	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	subprocess.call(call.split())
+	return call
+
+def convertavi(filename='temp.avi', out='gifify.mp4') :
+	global length
+	global bitrate
+	global quality
+	global userquality
+	global inputoptions
+	global estimatedsize
+	width = 1920  # assume worst case scenarios
+	height = 1080
+	misc = '-pix_fmt yuv420p'
+	quality = 4000
+	filesize = None
+	estimatedsize = -1
+	quality, width, height, length, filesize = FFprobe(filename)
+	if width > 1280 and width >= height :
+		misc = misc + ' -vf scale=1280:-2'
+	elif height > 1280 and height > width :
+		misc = misc + ' -vf scale=-2:1280'
+	elif width % 2 != 0 or height % 2 != 0 :
+		misc = misc + ' -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"'
+	estimatedsize = length * quality/8
+	userquality = float(userquality)
+	if userquality > 0 :
+		quality = userquality
+		estimatedsize = length * quality/8
+	elif estimatedsize > 8000 : # estimating final size to determine if it should be compressed
+		quality = 64000 / length # ~65,000 seems to work best to keep it under 8mb
+		estimatedsize = length * quality/8
+	elif length == 1 and filesize/8192 > 8000 :
+		quality = 1500 # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 		estimatedsize = 1
-	print('(compressing, ', round(length, 2), 's @ ', quality, 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -371,13 +417,13 @@ def FFprobe(filename) :
 	height = 1080
 	filesize = None
 	try :
-		call = 'ffprobe -v quiet -print_format json -show_streams ' + filename
-		ffprobe = subprocess.check_output(call.split()).decode('utf-8')
+		call = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', filename]
+		ffprobe = subprocess.check_output(call).decode('utf-8')
 		ffprobe = json.loads(ffprobe)
 		for i in range(len(ffprobe['streams'])) :
 			if 'codec_type' in ffprobe['streams'][i] and ffprobe['streams'][i]['codec_type'] == 'video' : # ffprobe shows gif codec type as being video, so this still works
 				if 'bit_rate' in ffprobe['streams'][i] :
-					bitrate = int(ffprobe['streams'][i]['bit_rate'])
+					bitrate = float(ffprobe['streams'][i]['bit_rate'])
 				if 'width' in ffprobe['streams'][i] and ffprobe['streams'][i]['width'] > 0 :
 					width = int(ffprobe['streams'][i]['width'])
 				if 'height' in ffprobe['streams'][i] and ffprobe['streams'][i]['height'] > 0 :
@@ -392,8 +438,7 @@ def FFprobe(filename) :
 				if 'duration' in ffprobe['streams'][i] :
 					length = float(ffprobe['streams'][i]['duration']) # already seconds
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 
 	filesize = os.path.getsize(filename) * 8 # convert to bits
 	if bitrate < 0 :
@@ -426,8 +471,7 @@ def istimecodeformat(timecode) :
 			if IsFloat(potentialfloat) is None : return False
 		return True
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 	return False
 
 def getsecondsfromtimecode(timecode) :
@@ -442,10 +486,13 @@ def getsecondsfromtimecode(timecode) :
 		else :
 			return 1
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
-		return 1
+		handle_exception(e)
+	return 1
 
+def gifify(url) :
+	return linkonly(url)
+def convert(url) :
+	return linkonly(url)
 def linkonly(url) :
 	global acceptedtypes
 	url = url.split('?')[0] # remove any extraneous information after and including ?, if there is one
@@ -481,21 +528,22 @@ def parseformedia(url) :
 		if 'src' in source.attrs : return source.attrs['src']
 		if 'data' in source.attrs : return source.attrs['data']
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
-		return None
+		handle_exception(e)
+	return None
 
 def start(update) :
 	print('responding to /start...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert .mp4, .gifv, .gif, and .webm URLs, and even parse twitter and many other websites!\n\nJust send me a link or file to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
+	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert .mp4, .gifv, .gif, and .webm URLs, and even parse twitter and many other websites!\n\nJust send me a link or file to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
 	checkresponse(response)
+	return 0
 
 def help(update) :
 	print('responding to /help...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
+	response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2')
 	checkresponse(response)
+	return 0
 	
 def checkresponse(response) :
 	try :
@@ -509,8 +557,7 @@ def checkresponse(response) :
 				print('reason: ' + response['description'])
 				return response['description']
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 		print(response, end='\n\n')
 
 def checkresponsetime(response, starttime) :
@@ -525,12 +572,14 @@ def checkresponsetime(response, starttime) :
 				print('reason: ' + response['description'])
 				return response['description']
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
+		handle_exception(e)
 		print(response, end='\n\n')
 
 		
 def checkresponsesilent(response) :
+	global loadframes
+	global loadindex
+	global loadloop
 	try :
 		response = response.json()
 		if not response['ok'] :
@@ -540,13 +589,10 @@ def checkresponsesilent(response) :
 			return None
 		return response
 	except Exception as e :
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		print('\r( ' + colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, ', line:', exc_tb.tb_lineno, ' )...', sep='', end='')
-		print(response, end='')
+		print(colorama.Fore.LIGHTRED_EX + '\r' + loadloop[loadindex] + ' ', end=colorama.Style.RESET_ALL)
+		loadindex = loadindex + 1
+		if loadindex > loadframes : loadindex = 0
 		return None
-
-def donothing() :
-	pass
 
 def reset() :
 	global endtime
@@ -568,7 +614,7 @@ def parsequery(query, url, command) :
 	endtime = 0
 	userlength = 1 # default
 	if len(query) > 0 :
-		if command == '' and query[0][0] != '/' :
+		if command == '' or command.startswith('@') and query[0][0] != '/' :
 			command = 'linkonly'
 
 		for j in range(len(query)) :
@@ -617,6 +663,14 @@ def getpercentandcolors(finalsize, estimatedsize) :
 	if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
 	return pcent, color, finalcolor
 
+def handle_exception(e) :
+	exc_type, exc_obj, exc_tb = sys.exc_info()
+	stacktrace = traceback.format_tb(exc_tb)
+	error = ''
+	for framesummary in stacktrace :
+		error = error + framesummary
+	print(colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, '\n    stacktrace:\n', error, '\n...', sep='', end='')
+
 if __name__ == '__main__' :
 	global api
 	global token
@@ -651,17 +705,20 @@ if __name__ == '__main__' :
 	# }
 	# credentials are saved in credentials.json in the format above (twitter not required)
 
-	print('loading credentials...', end='', flush= True)
+	print('loading credentials...', end='', flush=True)
 	with open('credentials.json') as userinfo :
 		credentials = json.load(userinfo)
 		token = credentials['telegramAccessToken']
 		botID = credentials['telegramBotID']
 		try : api = twitter.Api(consumer_key = credentials['twitter']['consumerKey'], consumer_secret = credentials['twitter']['consumerSecret'], access_token_key = credentials['twitter']['accessTokenKey'], access_token_secret = credentials['twitter']['accessTokenSecret'], tweet_mode='extended')
-		except : print(' (failed to initialize twitter)... ', end='', flush= True)
+		except : print(' (failed to initialize twitter)... ', end='', flush=True)
 		#print(json.dumps(credentials, indent=2))
 	print('success.\n')
 
 	if len(sys.argv) > 1 :
+		if len(sys.argv[1].split()) > 1 :
+			print('filename must not contain spaces (sorry)')
+			exit(0)
 		parsequery(sys.argv[2:], sys.argv[1], '/localfile')
 		print('converting...', end='', flush=True)
 		finalsize = convertlocalfile(sys.argv[1])
@@ -677,7 +734,7 @@ if __name__ == '__main__' :
 	loadframes = len(loadloop) - 1
 	loadindex = 0
 
-	commands = ['linkonly', 'geturlfromdocument']
+	commands = ['linkonly', 'geturlfromdocument', 'start', 'gifify', 'convert']
 	othercommands = ['start', 'help']
 	acceptedtypes = ['webm', 'mp4', 'gif', 'mov', 'swf']
 	
@@ -693,7 +750,7 @@ if __name__ == '__main__' :
 		except KeyboardInterrupt :
 			print('\rdone.', end='')
 			exit(0)
-		except : donothing() # sometimes this crashes for no reason
+		except : pass # sometimes this crashes for no reason
 		updateList = checkresponsesilent(response)
 		if updateList :
 			updateList = updateList['result']
@@ -707,12 +764,20 @@ if __name__ == '__main__' :
 							commandstarttime = time.time()
 							url = ''
 							command = ''
-							if 'from' in updateList[i]['message'] :
-								if 'username' in updateList[i]['message']['from'] :
-									print('(from ', updateList[i]['message']['from']['username'], ')', sep='', end=' ')
+
+							if 'username' in updateList[i]['message']['from'] :
+								print('(from ', updateList[i]['message']['from']['username'], ')', sep='', end=' ')
+							else :
+								print('(from ', updateList[i]['message']['from']['first_name'], ' (', updateList[i]['message']['from']['id'], '))', sep='', end=' ')
+
+							if 'type' in updateList[i]['message']['chat'] and 'group' in updateList[i]['message']['chat']['type'] : 
+								if 'text' in updateList[i]['message'] and 'gifify' in updateList[i]['message']['text'] :
+									pass # carry on
 								else :
-									print('(from ', updateList[i]['message']['from']['first_name'], ' (', updateList[i]['message']['from']['id'], '))', sep='', end=' ')
-							
+									print('command in group without mention, skipping.')
+									mostrecentupdate = updateList[i]['update_id'] # skip this id
+									break
+
 							if 'text' in updateList[i]['message'] :
 								query = updateList[i]['message']['text'].split(' ')
 							elif 'document' in updateList[i]['message'] :
@@ -733,12 +798,15 @@ if __name__ == '__main__' :
 
 							print(query, time.ctime(commandstarttime))
 							url, command = parsequery(query, url, command)
+							command = command.split('@')[0]
+							command = command.replace('gifify', 'linkonly', 1).replace('convert', 'linkonly', 1)
 
 							if command in commands :
 								method = getattr(giffer, command)
 								print('retrieving url...', end='', flush=True)
 								videourl = method(url)
-								if videourl is not None :
+								if videourl == 0 : pass # non-conversion method ran fine
+								elif videourl is not None :
 									print('success. (', videourl, ')')
 									
 									print('converting to gif...', end='', flush=True)
@@ -748,9 +816,9 @@ if __name__ == '__main__' :
 										print('success. ( ' + finalcolor, prettysize(finalsize), colorama.Style.RESET_ALL + '/', prettysize(estimatedsize), ': ' + color, pcent, '%' + colorama.Style.RESET_ALL + ' )' , sep='')
 										print('sending gif...', end='', flush=True)
 										if command == 'linkonly' :
-											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
+											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&caption=' + url.replace('?', '%3F')
 										else :
-											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id'])
+											request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id'])
 										with open('gifify.mp4', 'rb') as gif :
 											telegramfile = {'document': gif}
 											sentFile = requests.get(request, files=telegramfile)
@@ -760,7 +828,7 @@ if __name__ == '__main__' :
 										print('apologizing...', end='', flush=True)
 										request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 										text = 'Sorry, I wasn\'t able to convert that!'
-										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
+										response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
 										checkresponse(response)
 										print(updateList[i])
 								else :
@@ -769,7 +837,8 @@ if __name__ == '__main__' :
 									request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 									text = 'Sorry, I don\'t support that filetype yet!\n\nTo see what I can do, try /start'
 									if 't.co' in url : text = 'I\'m sorry, I can\'t convert shortened urls! Can you send the full url?\nie: `https://twitter.com/user/status/0000000000000000000000`&parse_mode=Markdown'
-									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
+									if url == '' : text = 'Please send me a link or file to convert!\n\nTo see what I can do, try /start'
+									response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=' + text)
 									checkresponse(response)
 							elif command in othercommands and hasattr(giffer, command) :
 								method = getattr(giffer, command)
@@ -777,15 +846,16 @@ if __name__ == '__main__' :
 							else :
 								print('unknown command ( /', command, ' ) apologizing...', sep='', end='', flush=True)
 								request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-								response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['from']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help')
+								response = requests.get(request + '?chat_id=' + str(updateList[i]['message']['chat']['id']) + '&reply_to_message_id=' + str(updateList[i]['message']['message_id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help')
 								checkresponse(response)
 						else :
 							print(updateList[i])
 					else :
 						print(updateList[i])
 							
-				# clear update list
-				mostrecentupdate = updateList[-1]['update_id']
+					# clear update list
+					mostrecentupdate = updateList[-1]['update_id']
+				print()
 			else : time.sleep(1) # wait a second before trying again 
 		else : time.sleep(1) # an error, or the update list is empty
 	# end while loop
