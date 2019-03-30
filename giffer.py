@@ -185,7 +185,7 @@ def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 	width = 1920  # assume worst case scenarios
 	height = 1080
 	misc = '-pix_fmt yuv420p'
-	quality = '4000'
+	quality = 4000
 	filesize = None
 	estimatedsize = -1
 	bitrate, width, height, length, filesize = FFprobe(filename)
@@ -197,18 +197,18 @@ def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 		misc = misc + ' -vf scale=-2:1280'
 		rescale = True
 	estimatedsize = (bitrate/8192)*length
-	if float(userquality) > 0 :
-		quality = userquality + 'k'
-		estimatedsize = length * float(userquality)/8
-		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'b/s)...', sep='', end='', flush=True)
-		quality = '-b:v ' + quality
+	userquality = float(userquality)
+	if userquality > 0 :
+		quality = userquality
+		estimatedsize = length * quality/8
+		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+		quality = '-b:v ' + str(quality) + 'k'
 	elif rescale or estimatedsize > 8000 : # estimating final size to determine if it should be compressed
 		quality = 66000 / length
 		if quality > 8000 : quality = 8000
-		estimatedsize = length * float(quality)/8
-		quality = str(quality) + 'k'
-		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'b/s)...', sep='', end='', flush=True)
-		quality = '-b:v ' + quality
+		estimatedsize = length * quality/8
+		print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
+		quality = '-b:v ' + str(quality) + 'k'
 	elif endtime > 0 or starttime > 0 :
 		quality = '-c copy'
 		print('(cutting to ', round(length, 2), 's, lossless)...', sep='', end='', flush=True)
@@ -246,9 +246,8 @@ def convertwebm(filename='temp.webm', out='gifify.mp4') :
 		quality = 63500 / length # ~65,000 seems to work best to keep it under 8mb
 		if quality > 8000 : quality = 8000
 		estimatedsize = length * quality/8
-		quality = str(quality)
 	elif length == 1 and filesize/8192 > 8000 :
-		quality = '1500' # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
+		quality = 1500 # when there's no way to estimate what the bitrate or length is use 1500 as a happy medium
 		estimatedsize = 1
 	
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
