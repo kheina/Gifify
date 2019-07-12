@@ -203,7 +203,7 @@ def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 	elif height > 1280 and height > width :
 		misc = misc + ' -vf scale=-2:1280'
 		rescale = True
-	estimatedsize = (bitrate/8192)*length
+	estimatedsize = (bitrate/8000)*length
 	userquality = float(userquality)
 	if userquality > 0 :
 		quality = userquality

@@ -1,5 +1,5 @@
 requests_html
-PIL.GifImagePlugin
+pillow
 ujson
 requests
 colorama
