@@ -766,11 +766,11 @@ def runcommand(message, command, url, commandstarttime) :
 		checkresponse(response)
 
 
-def performrequest(request, timeout=30, maxretries=2, stream=False) :
+def performrequest(request, timeout=30, maxretries=2, stream=False, files=None) :
 	attempts = 0
 	while attempts < maxretries :
 		try :
-			return requests.get(request, timeout=timeout, stream=stream)
+			return requests.get(request, timeout=timeout, stream=stream, files=files)
 		except :
 			pass
 		attempts += 1
