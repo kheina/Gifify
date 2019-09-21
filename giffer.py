@@ -405,7 +405,7 @@ def convertavi(filename='temp.avi', out='gifify.mp4') :
 	return call
 
 def downloadfile(url, filename) :
-	response = requests.get(url, stream=True, timeout=300) # stream=True IS REQUIRED # five minutes to download a document
+	response = performrequest(url, stream=True, timeout=300) # stream=True IS REQUIRED # five minutes to download a document
 	if response.status_code == 200 :
 		with open(filename, 'wb') as tobegif :
 			shutil.copyfileobj(response.raw, tobegif)
@@ -518,7 +518,7 @@ def geturlfromdocument(document) :
 		mime_type = document['mime_type'].split('/')
 		if len(mime_type) > 1 and mime_type[1] in acceptedtypes :
 			request = 'https://api.telegram.org/bot' + token + '/getFile?file_id=' + document['file_id']
-			response = requests.get(request, timeout=30)
+			response = performrequest(request, timeout=30)
 			response = checkresponsesilent(response)
 			if response is not None :
 				return 'https://api.telegram.org/file/bot' + token + '/' + response['result']['file_path']
@@ -540,18 +540,18 @@ def parseformedia(url) :
 def start(message) :
 	print('responding to /start...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(message['chat']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert .mp4, .gifv, .gif, and .webm URLs, and even parse twitter and many other websites!\n\nJust send me a link or file to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2', timeout=30)
+	response = performrequest(request + '?chat_id=' + str(message['chat']['id']) + '&text=I can quickly convert video content into a gif for you to share!\n\nI can convert .mp4, .gifv, .gif, and .webm URLs, and even parse twitter and many other websites!\n\nJust send me a link or file to get started!\n\nP.S. if you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2', timeout=30)
 	checkresponse(response)
 	return 0
 
 def help(message) :
 	print('responding to /help...', end='', flush=True)
 	request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-	response = requests.get(request + '?chat_id=' + str(message['chat']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2', timeout=30)
+	response = performrequest(request + '?chat_id=' + str(message['chat']['id']) + '&text=Did the gif not turn out correctly?\n\nIf you want to help me out, tell me about how long the video is by sending me length=[time in seconds] after your url (webm only)\nex: https://example.com/yourvideo.webm length=73\n\nOr, alternatively, you can send me starting and ending times, and I\'ll turn that clip into a gif!\nex: https://example.com/yourvideo.gif start=5 end=16.2', timeout=30)
 	checkresponse(response)
 	return 0
 	
-def checkresponse(response) :
+def checkresponse(response, report=None) :
 	try :
 		response = response.json()
 		if response['ok'] :
@@ -563,10 +563,10 @@ def checkresponse(response) :
 				print('reason: ' + response['description'])
 				return response['description']
 	except Exception as e :
-		handle_exception(e)
+		handle_exception(e, report=report)
 		print(response, end='\n\n')
 
-def checkresponsetime(response, starttime) :
+def checkresponsetime(response, starttime, report=None) :
 	try :
 		response = response.json()
 		if response['ok'] :
@@ -578,7 +578,7 @@ def checkresponsetime(response, starttime) :
 				print('reason: ' + response['description'])
 				return response['description']
 	except Exception as e :
-		handle_exception(e)
+		handle_exception(e, report=report)
 		print(response, end='\n\n')
 
 		
@@ -735,15 +735,15 @@ def runcommand(message, command, url, commandstarttime) :
 					request = 'https://api.telegram.org/bot' + token + '/sendDocument?chat_id=' + str(message['chat']['id'])
 				with open('gifify.mp4', 'rb') as gif :
 					telegramfile = {'document': gif}
-					sentFile = requests.get(request, files=telegramfile, timeout=300) # 5 minutes in case the file is huge or something (this should never be an issue)
-					checkresponsetime(sentFile, commandstarttime)
+					sentFile = performrequest(request, files=telegramfile, timeout=300) # 5 minutes in case the file is huge or something (this should never be an issue)
+					checkresponsetime(sentFile, commandstarttime, report=message['chat']['id'])
 				os.remove('gifify.mp4') # delete file to prevent sending the wrong file in the future
 			else :
 				print('apologizing...', end='', flush=True)
 				request = 'https://api.telegram.org/bot' + token + '/sendMessage'
 				text = 'Sorry, I wasn\'t able to convert that!'
 				if cause is not None : text = 'Looks like something went wrong!\n\n' + cause
-				response = requests.get(request + '?chat_id=' + str(message['chat']['id']) + '&text=' + text, timeout=30)
+				response = performrequest(request + '?chat_id=' + str(message['chat']['id']) + '&text=' + text, timeout=30)
 				checkresponse(response)
 				print(message)
 		else :
@@ -754,7 +754,7 @@ def runcommand(message, command, url, commandstarttime) :
 			if 't.co' in url : text = 'I\'m sorry, I can\'t convert shortened urls! Can you send the full url?\nie: `https://twitter.com/user/status/0000000000000000000000`&parse_mode=Markdown'
 			if url == '' : text = 'Please send me a link or file to convert!\n\nTo see what I can do, try /start'
 			if cause is not None : text = 'Looks like something went wrong!\n\n' + cause
-			response = requests.get(request + '?chat_id=' + str(message['chat']['id']) + '&text=' + text, timeout=30)
+			response = performrequest(request + '?chat_id=' + str(message['chat']['id']) + '&text=' + text, timeout=30)
 			checkresponse(response)
 	elif command in othercommands and hasattr(giffer, command) :
 		method = getattr(giffer, command)
@@ -762,9 +762,19 @@ def runcommand(message, command, url, commandstarttime) :
 	else :
 		print('unknown command ( /', command, ' ) apologizing...', sep='', end='', flush=True)
 		request = 'https://api.telegram.org/bot' + token + '/sendMessage'
-		response = requests.get(request + '?chat_id=' + str(message['chat']['id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help', timeout=30)
+		response = performrequest(request + '?chat_id=' + str(message['chat']['id']) + '&text=Sorry, I don\'t respond to that command.\n\nTry /start or /help', timeout=30)
 		checkresponse(response)
 
+
+def performrequest(request, timeout=30, maxretries=2, stream=False) :
+	attempts = 0
+	while attempts < maxretries :
+		try :
+			return requests.get(request, timeout=timeout, stream=stream)
+		except :
+			pass
+		attempts += 1
+	return None
 
 def getpercentandcolors(finalsize, estimatedsize) :
 	pcent = percent(finalsize, estimatedsize)
@@ -775,13 +785,15 @@ def getpercentandcolors(finalsize, estimatedsize) :
 	if finalsize > 8000 : finalcolor = colorama.Fore.LIGHTRED_EX
 	return pcent, color, finalcolor
 
-def handle_exception(e) :
+def handle_exception(e, report=None) :
 	exc_type, exc_obj, exc_tb = sys.exc_info()
 	stacktrace = traceback.format_tb(exc_tb)
 	error = ''
 	for framesummary in stacktrace :
 		error = error + framesummary
 	print(colorama.Fore.LIGHTRED_EX + 'error' + colorama.Style.RESET_ALL + ': ', e, '\n    stacktrace:\n', error, '\n...', sep='', end='')
+	if report :
+		performrequest('https://api.telegram.org/bot' + token + '/sendMessage?chat_id=' + str(report) + '&text=Looks like something went wrong...\n\n' + e)
 	return e
 
 if __name__ == '__main__' :
