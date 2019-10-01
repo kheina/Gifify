@@ -468,7 +468,10 @@ def prettysize(filesize) :
 	else : return str(round(filesize, 2)) + 'KB'
 
 def percent(numerator, denominator) :
-	return round(numerator * 100 / denominator, 2)
+	try :
+		return round(numerator * 100 / denominator, 2)
+	except :
+		return 0
 
 def istimecodeformat(timecode) :
 	try :
