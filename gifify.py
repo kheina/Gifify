@@ -270,7 +270,7 @@ class Gifify :
 
 		if 'source' in kwargs :
 			source = kwargs['source']
-			if source.endswith('.mp4') : source = source[:-4]
+			if source and source.endswith('.mp4') : source = source[:-4]
 			gifname = f'{folder}/gif by gifify - {source}.mp4'
 
 		# else :
