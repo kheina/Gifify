@@ -290,7 +290,7 @@ class Gifify :
 			subprocess.call(call)
 
 			finalsize = os.path.getsize(gifname) / 1024
-			print(f'({round(finalsize, 2)}kb/{quality})...', flush=True, end='')
+			print(f'({round(finalsize, 2)}kb/{round(quality, 2)})...', flush=True, end='')
 		
 		return gifname
 
@@ -352,7 +352,6 @@ class Gifify :
 		count = 0
 		for update in self.recv() :
 			try :
-				print(update)
 				self.parseMessage(update['message'])
 
 			except QuitParsing as e :
