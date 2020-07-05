@@ -79,7 +79,7 @@ class Gifify :
 
 	def __init__(self) :
 		print('loading credentials...', end='', flush=True)
-		with open('credentials.json') as credentials :
+		with open('test-credentials.json') as credentials :
 			credentials = json.load(credentials)
 			self._telegram_access_token = credentials['telegram_access_token']
 			self._telegram_bot_id = credentials['telegram_bot_id']
@@ -318,14 +318,15 @@ class Gifify :
 		entity = self.commandsjmespath.search(message)
 		if entity :
 			end = entity['offset'] + entity['length']
-			command = message['text'][entity['offset']:end].lower()
-			if command != '/gifify' :
-				print('done.')
-				return self.sendMessage(chat, self.basicCommands[command])
+			command = message['text'][entity['offset']:end].lower().split('@')[0]
 
 		# exit if it's a group and the command isn't gifify
-		if user != chat and command != '/gifify' :
-			return True
+		if command != '/gifify' :
+			print('done.')
+			if user != chat :
+				return self.sendMessage(chat, self.basicCommands[command])
+			else :
+				return True
 
 		# stage 1
 		print('downloading media...', end='', flush=True)
@@ -351,6 +352,7 @@ class Gifify :
 		count = 0
 		for update in self.recv() :
 			try :
+				print(update)
 				self.parseMessage(update['message'])
 
 			except QuitParsing as e :
