@@ -323,7 +323,7 @@ class Gifify :
 		# exit if it's a group and the command isn't gifify
 		if command != '/gifify' :
 			print('done.')
-			if user != chat :
+			if user == chat :
 				return self.sendMessage(chat, self.basicCommands[command])
 			else :
 				return True
@@ -404,11 +404,3 @@ if __name__ == '__main__' :
 		loop.close()
 	finally :
 		pass
-
-"""
-
-from gifify import Gifify
-g = Gifify()
-g.run()
-
-"""
