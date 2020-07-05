@@ -226,7 +226,7 @@ class Gifify :
 				length = (gif.n_frames + 1) * gif.info['duration'] / 1000 # divide by 1000 to get seconds
 				return filesize / length, gif.width, gif.height, length
 
-		call = ('./ffprobe.exe', '-v', 'quiet', '-print_format', 'json', '-show_streams', filename)
+		call = ('ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', filename)
 
 		output = json.loads(subprocess.check_output(call).decode())
 		length = self.lengthjmespath.search(output)
