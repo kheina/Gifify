@@ -79,7 +79,7 @@ class Gifify :
 
 	def __init__(self) :
 		print('loading credentials...', end='', flush=True)
-		with open('test-credentials.json') as credentials :
+		with open('credentials.json') as credentials :
 			credentials = json.load(credentials)
 			self._telegram_access_token = credentials['telegram_access_token']
 			self._telegram_bot_id = credentials['telegram_bot_id']
