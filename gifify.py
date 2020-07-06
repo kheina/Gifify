@@ -321,11 +321,12 @@ class Gifify :
 			command = message['text'][entity['offset']:end].lower().split('@')[0]
 
 		# exit if it's a group and the command isn't gifify
-		if user != chat and command != '/gifify' :
-			print('done.')
-			return True
-		elif command :
-			return self.sendMessage(chat, self.basicCommands[command])
+		if command != '/gifify' :
+			if user != chat :
+				print('done.')
+				return True
+			elif command :
+				return self.sendMessage(chat, self.basicCommands[command])
 
 		# stage 1
 		print('downloading media...', end='', flush=True)
