@@ -79,7 +79,7 @@ class Gifify :
 
 	def __init__(self) :
 		print('loading credentials...', end='', flush=True)
-		with open('credentials.json') as credentials :
+		with open('test-credentials.json') as credentials :
 			credentials = json.load(credentials)
 			self._telegram_access_token = credentials['telegram_access_token']
 			self._telegram_bot_id = credentials['telegram_bot_id']
@@ -321,12 +321,9 @@ class Gifify :
 			command = message['text'][entity['offset']:end].lower().split('@')[0]
 
 		# exit if it's a group and the command isn't gifify
-		if command != '/gifify' :
+		if user != chat and command != '/gifify' :
 			print('done.')
-			if user == chat :
-				return self.sendMessage(chat, self.basicCommands[command])
-			else :
-				return True
+			return True
 
 		# stage 1
 		print('downloading media...', end='', flush=True)
