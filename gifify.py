@@ -324,7 +324,7 @@ class Gifify :
 		if user != chat and command != '/gifify' :
 			print('done.')
 			return True
-		else :
+		elif command :
 			return self.sendMessage(chat, self.basicCommands[command])
 
 		# stage 1
