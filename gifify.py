@@ -283,19 +283,19 @@ class Gifify :
 		while not finalsize or finalsize > self.filelimit :
 			if finalsize :
 				_q *= self.filelimit / finalsize * 0.95
-				quality = f'-b:v {quality}k'.split()
+				quality = f'-b:v {_q}k'.split()
 			elif filesize < self.filelimit * 0.95 and filename.endswith('.mp4') :
 				_q = filesize * 8 / length  # get a rough bitrate incase it loops
 				quality = '-c copy'.split()  # if it's an mp4 within the filelimit, just cut out the audio and copy the video directly
 			else :
 				_q = min(self.filelimit * 0.95 * self.filelimit * 8 / length, 8000)
-				quality = f'-b:v {quality}k'.split()
+				quality = f'-b:v {_q}k'.split()
 
 			call = 'ffmpeg', *inputoptions, '-i', f'{folder}/{filename}', *quality, *misc, '-pix_fmt', 'yuv420p', '-loglevel', 'quiet', '-an', gifname, '-y'
 			subprocess.call(call)
 
 			finalsize = os.path.getsize(gifname) / 1024
-			print(f'({round(finalsize, 2)}kb/{round(_q, 2)})...', flush=True, end='')
+			print(f'({round(finalsize, 2)}kb/{round(_q, 2)}kb/s)...', flush=True, end='')
 		
 		return gifname
 
