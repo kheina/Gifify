@@ -219,12 +219,12 @@ class Gifify :
 
 
 	def examineFile(self, filename) :
-		# returns bitrate, width, height, length
-		filesize = os.path.getsize(filename) * 8 # convert to bits
+		# returns filesize, width, height, length
+		filesize = os.path.getsize(filename) / 1024  # convert to kilobytes
 		if filename.endswith('.gif') :
 			with PIL.GifImagePlugin.GifImageFile(fp=filename) as gif :
 				length = (gif.n_frames + 1) * gif.info['duration'] / 1000 # divide by 1000 to get seconds
-				return filesize / length, gif.width, gif.height, length
+				return filesize, gif.width, gif.height, length
 
 		call = ('ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', filename)
 
@@ -234,7 +234,9 @@ class Gifify :
 
 		return (
 			# bitrate
-			self.maxbitratejmespath.search(output) or self.bitratejmespath.search(output) or filesize / length,
+			# self.maxbitratejmespath.search(output) or self.bitratejmespath.search(output) or filesize / length,
+			# filesize
+			filesize,
 			# width
 			self.widthjmespath.search(output),
 			# height
@@ -246,7 +248,7 @@ class Gifify :
 
 	def convertFileToGif(self, folder, filename, **kwargs) :
 
-		bitrate, width, height, length = self.examineFile(f'{folder}/{filename}')
+		filesize, width, height, length = self.examineFile(f'{folder}/{filename}')
 		misc = []
 
 		if width > self.framelimit or height > self.framelimit :
@@ -276,26 +278,31 @@ class Gifify :
 		# else :
 		gifname = f'{folder}/gif by gifify.mp4'
 
-		# bitrate ?
-
 		finalsize = 0
 
 		while not finalsize or finalsize > self.filelimit :
 			if finalsize :
-				quality *= self.filelimit / finalsize * 0.95
+				_q *= self.filelimit / finalsize * 0.95
+				quality = f'-b:v {quality}k'.split()
+			elif filesize < self.filelimit * 0.95 and filename.endswith('.mp4') :
+				_q = filesize * 8 / length  # get a rough bitrate incase it loops
+				quality = '-c copy'.split()  # if it's an mp4 within the filelimit, just cut out the audio and copy the video directly
 			else :
-				quality = min(self.filelimit * 0.95 * self.filelimit * 8 / length, 8000)
+				_q = min(self.filelimit * 0.95 * self.filelimit * 8 / length, 8000)
+				quality = f'-b:v {quality}k'.split()
 
-			call = 'ffmpeg', *inputoptions, '-i', f'{folder}/{filename}', '-b:v', str(quality) + 'k', *misc, '-pix_fmt', 'yuv420p', '-loglevel', 'quiet', '-an', gifname, '-y'
+			call = 'ffmpeg', *inputoptions, '-i', f'{folder}/{filename}', *quality, *misc, '-pix_fmt', 'yuv420p', '-loglevel', 'quiet', '-an', gifname, '-y'
 			subprocess.call(call)
 
 			finalsize = os.path.getsize(gifname) / 1024
-			print(f'({round(finalsize, 2)}kb/{round(quality, 2)})...', flush=True, end='')
+			print(f'({round(finalsize, 2)}kb/{round(_q, 2)})...', flush=True, end='')
 		
 		return gifname
 
 
 	def processSubcommands(self, text) :
+		if not text :
+			return { }
 		text = text.split()
 		subcommands = { }
 		for t in text :
@@ -334,7 +341,7 @@ class Gifify :
 
 		# stage 2
 		print('converting...', end='', flush=True)
-		gif = self.convertFileToGif(data['folder'], data['filename'], source=data['source'], **self.processSubcommands(message['text']))
+		gif = self.convertFileToGif(data['folder'], data['filename'], source=data['source'], **self.processSubcommands(message.get('text')))
 
 		# stage 3
 		print('sending gif...', end='', flush=True)
