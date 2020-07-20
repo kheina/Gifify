@@ -152,7 +152,7 @@ def convertlocalfile(filename) :
 	try :
 		if urllower.endswith('.m3u8') :
 			quality = '-c copy'
-			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -loglevel quiet -an gif.mp4 -y'
+			call = 'ffmpeg ' + inputoptions + ' -i ' + url + ' -b:v ' + quality + 'k ' + misc + ' -an gif.mp4 -y'
 			subprocess.call(call.split())
 		elif urllower.endswith('.mp4') :
 			call = convertmp4(filename=filename, out='gif.mp4')
@@ -220,7 +220,7 @@ def convertmp4(filename='temp.mp4', out='gifify.mp4') :
 		quality = '-c copy'
 		print('(cutting to ', round(length, 2), 's, lossless)...', sep='', end='', flush=True)
 	else : quality = '-c copy'
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' ' + quality + ' ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' ' + quality + ' ' + misc + ' -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -258,8 +258,8 @@ def convertwebm(filename='temp.webm', out='gifify.mp4') :
 		estimatedsize = 1
 	
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
-	subprocess.call(call.split())
+	call = f'ffmpeg {inputoptions} -i {filename} -b:v {quality}k {misc} -an {out} -y'.split()
+	subprocess.call(call)
 	return call
 
 def convertmov(filename='temp.mov', out='gifify.mp4') :
@@ -294,7 +294,7 @@ def convertmov(filename='temp.mov', out='gifify.mp4') :
 		quality = 1500 # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 		estimatedsize = 1
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -327,7 +327,7 @@ def convertgif(filename='temp.gif', out='gifify.mp4') :
 		quality = 68000 / length # ~68,000 seems to work best to keep it under 8MB
 		estimatedsize = 8000 # 80,000 / 8
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -an ' + out + ' -y'
 	#print('( ' + call, end=' )...')
 	subprocess.call(call.split())
 	return call
@@ -364,7 +364,7 @@ def convertswf(filename='temp.swf', out='gifify.mp4') :
 		quality = 64000 / length # ~65,000 seems to work best to keep it under 8mb
 		estimatedsize = length * quality / 8
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -400,7 +400,7 @@ def convertavi(filename='temp.avi', out='gifify.mp4') :
 		quality = 1500 # there's no way to estimate what the bitrate or length is, so 1500 seems like a happy medium between quality and likelyhood the result will be under 10mb
 		estimatedsize = 1
 	print('(compressing, ', round(length, 2), 's @ ', round(quality, 2), 'kb/s)...', sep='', end='', flush=True)
-	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -loglevel quiet -an ' + out + ' -y'
+	call = 'ffmpeg ' + inputoptions + ' -i ' + filename + ' -b:v ' + str(quality) + 'k ' + misc + ' -an ' + out + ' -y'
 	subprocess.call(call.split())
 	return call
 
@@ -462,6 +462,7 @@ def FFprobe(filename) :
 	elif starttime > 0 :
 		length = length - starttime
 	return bitrate, width, height, length, filesize
+
 
 def prettysize(filesize) :
 	if filesize > 1000 : return str(round(filesize / 1024, 2)) + 'MB'

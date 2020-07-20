@@ -59,12 +59,13 @@ class Gifify :
 		'/start': 'I can convert your favorite media into gifs! Either send me a link in this chat or add me to a group and use /gifify!',
 		'/help': 'I can convert your favorite media into gifs! Either send me a link in this chat or add me to a group and use /gifify!',
 	})
+	maxretries = 10
 
 	statusRegex = re_compile(r'\/status\/(\d+)')
 	urljmespath = jmespath_compile(r"entities[?type=='url'] | [0]")
 	commandsjmespath = jmespath_compile(r"entities[?type=='bot_command'] | [0]")
 	twitterjmespath = jmespath_compile(r"media[?type=='video' || type=='animated_gif'].video_info.max_by(variants[?bitrate], &bitrate) | [0].url")
-	mediaregex = re_compile(r'''"((?:https?:\/\/)?[\w\/\.\_\-]+\.(?:''' + '|'.join(acceptedTypes.values()) + r''')(?:\?.*?)?)"''')
+	mediaregex = re_compile(r'''"((?:https?:\/\/)?[\w\/\.\_\-]+\.(''' + '|'.join(acceptedTypes.values()) + r''')(?:\?.*?)?)"''')
 	chatjmespath = jmespath_compile(r"message.chat.id")
 
 	widthjmespath = jmespath_compile(r"max(streams[?codec_type=='video'].width)")
@@ -186,7 +187,11 @@ class Gifify :
 
 		else :
 			# find the url
-			mediaurl = self.mediaregex.search(response.text).group(1)
+			mediaurls = { b: a for a, b in self.mediaregex.findall(response.text)}
+			for filetype in self.acceptedTypes.values() :
+				if filetype in mediaurls :
+					mediaurl = mediaurls[filetype]
+					break
 			
 			if not mediaurl.startswith('http') :
 				if domain not in mediaurl :
@@ -256,6 +261,8 @@ class Gifify :
 				misc = ['-vf', 'scale=1280:-2']
 			else :
 				misc = ['-vf', 'scale=-2:1280']
+		elif width % 2 != 0 or height % 2 != 0 :
+			misc = ['-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2']
 
 		inputoptions = []
 
@@ -278,6 +285,7 @@ class Gifify :
 		# else :
 		gifname = f'{folder}/gif by gifify.mp4'
 
+		retries = 0
 		finalsize = 0
 
 		while not finalsize or finalsize > self.filelimit :
@@ -296,6 +304,9 @@ class Gifify :
 
 			finalsize = os.path.getsize(gifname) / 1024
 			print(f'({round(finalsize, 2)}kb/{round(_q, 2)}kb/s)...', flush=True, end='')
+			retries += 1
+			if retries > self.maxretries :
+				raise ValueError('too many retries')
 		
 		return gifname
 
